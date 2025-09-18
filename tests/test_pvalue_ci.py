@@ -1,8 +1,8 @@
 # tests/test_pvalue_ci.py
 """
-Unit tests for ritest.ci.pvalue_ci.pvalue_ci
+Comprehensive tests for ritest.ci.pvalue_ci.pvalue_ci
 
-Run with:
+How to run:
     pytest -q -s tests/test_pvalue_ci.py
 """
 
@@ -19,16 +19,19 @@ from statsmodels.stats.proportion import proportion_confint
 from ritest.ci.pvalue_ci import pvalue_ci
 
 # ------------------------------------------------------------------ #
-# Global tolerance
+# Global numerical tolerance (tight; SciPy/statsmodels agree closely)
 # ------------------------------------------------------------------ #
-TOL = 1e-6
+TOL = 1e-12
 
 
 # ------------------------------------------------------------------ #
 # Helpers
 # ------------------------------------------------------------------ #
 def manual_wald_cc(c: int, reps: int, alpha: float) -> tuple[float, float]:
-    """Exact clone of the logic used in pvalue_ci (normal + CC)."""
+    """
+    Exact clone of the (normal + continuity correction) logic used in pvalue_ci.
+    CC magnitude is ± 0.5/reps, and bounds are clipped to [0, 1].
+    """
     p_hat = c / reps
     z = float(norm.ppf(1 - alpha / 2))
     se = math.sqrt(p_hat * (1 - p_hat) / reps)
@@ -38,40 +41,85 @@ def manual_wald_cc(c: int, reps: int, alpha: float) -> tuple[float, float]:
     return lo, hi
 
 
-# ------------------------------------------------------------------ #
-# 1. Clopper–Pearson vs statsmodels
-# ------------------------------------------------------------------ #
+# ================================================================== #
+# 1. Clopper–Pearson (exact) tests
+# ================================================================== #
+
+
 @pytest.mark.parametrize(
     "c,reps,alpha",
     [
+        # edges & mids (α = 0.05)
         (0, 10, 0.05),
         (1, 10, 0.05),
         (5, 10, 0.05),
+        (9, 10, 0.05),
         (10, 10, 0.05),
+        # different α
         (2, 20, 0.01),
+        (7, 20, 0.10),
+        # larger reps
+        (25, 100, 0.05),
+        (0, 100, 0.05),
+        (100, 100, 0.05),
     ],
 )
 def test_cp_matches_statsmodels(c: int, reps: int, alpha: float):
+    """Clopper–Pearson should match statsmodels' 'beta' method exactly."""
     if c == 0:
-        print("\n[Section 1] Clopper–Pearson vs statsmodels:")
+        print("\n[1] CP vs statsmodels:'beta'")
     lo, hi = pvalue_ci(c, reps, alpha=alpha, method="cp")
     lo_sm, hi_sm = proportion_confint(c, reps, alpha=alpha, method="beta")
 
-    lo_f: float = float(lo)  # type: ignore[arg-type]
-    hi_f: float = float(hi)  # type: ignore[arg-type]
-    lo_sm_f: float = float(lo_sm)  # type: ignore[arg-type]
-    hi_sm_f: float = float(hi_sm)  # type: ignore[arg-type]
-
     print(f"  CP   (c={c}, R={reps}, α={alpha})")
-    print(f"    → yours:       ({lo_f:.6f}, {hi_f:.6f})")
-    print(f"    → statsmodels: ({lo_sm_f:.6f}, {hi_sm_f:.6f})")
-    assert math.isclose(lo_f, lo_sm_f, rel_tol=TOL, abs_tol=TOL)
-    assert math.isclose(hi_f, hi_sm_f, rel_tol=TOL, abs_tol=TOL)
+    print(f"    → yours:       ({lo:.12f}, {hi:.12f})")
+    print(f"    → statsmodels: ({lo_sm:.12f}, {hi_sm:.12f})")
+
+    assert math.isclose(lo, lo_sm, rel_tol=TOL, abs_tol=TOL)
+    assert math.isclose(hi, hi_sm, rel_tol=TOL, abs_tol=TOL)
 
 
-# ------------------------------------------------------------------ #
-# 2. Normal (Wald + CC) vs manual formula
-# ------------------------------------------------------------------ #
+def test_cp_complementarity_property():
+    """
+    For equal-tailed CP intervals:
+      Upper(c) == 1 - Lower(reps - c)
+      Lower(c) == 1 - Upper(reps - c)
+    This should hold up to numerical tolerance (edges included).
+    """
+    print("\n[1b] CP complementarity property")
+    reps = 50
+    alphas = (0.01, 0.05, 0.10)
+    for alpha in alphas:
+        for c in (0, 1, 5, 10, 25, 49, 50):
+            lo_c, hi_c = pvalue_ci(c, reps, alpha=alpha, method="cp")
+            lo_m, hi_m = pvalue_ci(reps - c, reps, alpha=alpha, method="cp")
+
+            print(f"  R={reps}, α={alpha}, c={c:2d} -> U(c)≈1-L(R-c), L(c)≈1-U(R-c)")
+            assert math.isclose(hi_c, 1.0 - lo_m, rel_tol=1e-10, abs_tol=1e-10)
+            assert math.isclose(lo_c, 1.0 - hi_m, rel_tol=1e-10, abs_tol=1e-10)
+
+
+def test_cp_monotone_in_c():
+    """
+    As c increases, both lower and upper CP bounds should be non-decreasing.
+    """
+    print("\n[1c] CP monotonicity in c")
+    reps = 80
+    alpha = 0.05
+    lows, highs = [], []
+    for c in range(reps + 1):
+        lo, hi = pvalue_ci(c, reps, alpha=alpha, method="cp")
+        lows.append(lo)
+        highs.append(hi)
+    assert all(x2 >= x1 for x1, x2 in zip(lows, lows[1:]))
+    assert all(x2 >= x1 for x1, x2 in zip(highs, highs[1:]))
+
+
+# ================================================================== #
+# 2. Normal (Wald + continuity correction) tests
+# ================================================================== #
+
+
 @pytest.mark.parametrize(
     "c,reps,alpha",
     [
@@ -81,69 +129,122 @@ def test_cp_matches_statsmodels(c: int, reps: int, alpha: float):
         (9, 10, 0.05),
         (10, 10, 0.05),
         (3, 30, 0.01),
+        (15, 60, 0.10),
+        (0, 1, 0.05),
+        (1, 1, 0.05),
     ],
 )
-def test_normal_wald_cc(c: int, reps: int, alpha: float):
+def test_normal_wald_cc_equals_manual(c: int, reps: int, alpha: float):
+    """Wald+CC variant should match our manual helper exactly."""
     if c == 0:
-        print("\n[Section 2] Normal (Wald + CC) vs manual_wald_cc:")
+        print("\n[2] Normal (Wald + CC) vs manual formula")
     lo, hi = pvalue_ci(c, reps, alpha=alpha, method="normal")
     lo_exp, hi_exp = manual_wald_cc(c, reps, alpha)
 
-    lo_f: float = float(lo)  # type: ignore[arg-type]
-    hi_f: float = float(hi)  # type: ignore[arg-type]
-    lo_exp_f: float = float(lo_exp)  # type: ignore[arg-type]
-    hi_exp_f: float = float(hi_exp)  # type: ignore[arg-type]
-
     print(f"  Wald (c={c}, R={reps}, α={alpha})")
-    print(f"    → yours:    ({lo_f:.6f}, {hi_f:.6f})")
-    print(f"    → expected: ({lo_exp_f:.6f}, {hi_exp_f:.6f})")
-    assert math.isclose(lo_f, lo_exp_f, rel_tol=TOL, abs_tol=TOL)
-    assert math.isclose(hi_f, hi_exp_f, rel_tol=TOL, abs_tol=TOL)
+    print(f"    → yours:    ({lo:.12f}, {hi:.12f})")
+    print(f"    → expected: ({lo_exp:.12f}, {hi_exp:.12f})")
+
+    assert math.isclose(lo, lo_exp, rel_tol=TOL, abs_tol=TOL)
+    assert math.isclose(hi, hi_exp, rel_tol=TOL, abs_tol=TOL)
 
 
-# ------------------------------------------------------------------ #
-# 3. Edge-case clipping tests
-# ------------------------------------------------------------------ #
-def test_bound_clipping():
-    print("\n[Section 3] Clipping behavior at c = 0 and c = R")
+def test_normal_edges_clip_to_unit_interval():
+    """At c=0 and c=R the continuity-corrected bounds should clip nicely."""
+    print("\n[2b] Normal edges & clipping")
     lo0, hi0 = pvalue_ci(0, 50, method="normal")
-    lo1, hi1 = pvalue_ci(50, 50, method="normal")
-
-    lo0_f: float = float(lo0)  # type: ignore[arg-type]
-    hi0_f: float = float(hi0)  # type: ignore[arg-type]
-    lo1_f: float = float(lo1)  # type: ignore[arg-type]
-    hi1_f: float = float(hi1)  # type: ignore[arg-type]
-
-    print(f"  normal(c=0)  -> ({lo0_f:.4g}, {hi0_f:.4g})")
-    print(f"  normal(c=R)  -> ({lo1_f:.4g}, {hi1_f:.4g})")
-    print("  Clipping test – passed")
-
-    assert lo0_f == 0.0 and 0.0 < hi0_f <= 1.0
-    assert 0.0 <= lo1_f < 1.0 and hi1_f == 1.0
+    loR, hiR = pvalue_ci(50, 50, method="normal")
+    print(f"  c=0  -> ({lo0:.6f}, {hi0:.6f})")
+    print(f"  c=R  -> ({loR:.6f}, {hiR:.6f})")
+    assert lo0 == 0.0 and 0.0 < hi0 <= 1.0
+    assert 0.0 <= loR < 1.0 and hiR == 1.0
 
 
-# ------------------------------------------------------------------ #
+# ================================================================== #
+# 3. Alpha sensitivity (smaller alpha -> wider intervals)
+# ================================================================== #
+
+
+@pytest.mark.parametrize("method", ["cp", "normal"])
+def test_alpha_controls_width(method: str):
+    print("\n[3] alpha sensitivity (smaller alpha => wider CI)")
+    reps, c = 200, 40
+    lo80, hi80 = pvalue_ci(c, reps, alpha=0.20, method=method)  # 80% CI
+    lo99, hi99 = pvalue_ci(c, reps, alpha=0.01, method=method)  # 99% CI
+    wid80 = hi80 - lo80
+    wid99 = hi99 - lo99
+    print(f"  {method}: width(80%)={wid80:.6f}, width(99%)={wid99:.6f}")
+    assert wid99 > wid80
+    assert lo99 <= lo80 <= hi80 <= hi99
+
+
+# ================================================================== #
 # 4. Input validation
-# ------------------------------------------------------------------ #
+# ================================================================== #
+
+
+@pytest.mark.parametrize("bad_reps", [0, -1, 10.0])
+def test_bad_reps_raises(bad_reps):
+    print("\n[4] Input validation: bad reps")
+    with pytest.raises(ValueError, match="positive integer"):
+        pvalue_ci(0, bad_reps)  # type: ignore[arg-type]
+
+
 @pytest.mark.parametrize("bad_c", [-1, 11, 3.5])
 def test_bad_c_raises(bad_c):
-    print(f"\n[Section 4] Input validation: bad c = {bad_c}")
+    print("\n[4] Input validation: bad c")
     with pytest.raises(ValueError, match="integer"):
-        pvalue_ci(bad_c, reps=10)
+        pvalue_ci(bad_c, reps=10)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("bad_alpha", [0.0, 1.0, -0.1, 1.1, float("nan"), float("inf")])
+def test_bad_alpha_raises(bad_alpha):
+    print("\n[4] Input validation: bad alpha")
+    with pytest.raises(ValueError, match="alpha"):
+        pvalue_ci(1, 10, alpha=bad_alpha)
 
 
 def test_unknown_method_raises():
-    print("\n[Section 4] Input validation: unknown method")
+    print("\n[4] Input validation: unknown method")
     with pytest.raises(ValueError, match="Unknown ci method"):
         pvalue_ci(1, 10, method="bogus")  # type: ignore[arg-type]
 
 
-# ------------------------------------------------------------------ #
-# 5. Simulated large-data case
-# ------------------------------------------------------------------ #
-def test_simulated_large_case():
-    print("\n[Section 5] Simulated case: large R=10000, c from Binomial(100000, 0.25)")
+def test_numpy_integer_rejected_currently():
+    """
+    Current behavior: dtype must be Python int, np.int64 is rejected by isinstance(c, int).
+    If you later relax this (e.g., isinstance(c, (int, np.integer))), update this test.
+    """
+    print("\n[4] Input validation: numpy int rejected (current behavior)")
+    with pytest.raises(ValueError):
+        pvalue_ci(np.int64(1), 10)  # type: ignore[arg-type]
 
+
+# ================================================================== #
+# 5. Type and range sanity
+# ================================================================== #
+
+
+@pytest.mark.parametrize("method", ["cp", "normal"])
+def test_types_and_range(method: str):
+    print("\n[5] Type/range sanity")
+    lo, hi = pvalue_ci(7, 20, alpha=0.05, method=method)
+    assert isinstance(lo, float) and isinstance(hi, float)
+    assert 0.0 <= lo <= hi <= 1.0
+
+
+# ================================================================== #
+# 6. Simulated large-data case (sanity + perf ballpark)
+# ================================================================== #
+
+
+def test_simulated_large_case():
+    """
+    Draw c ~ Binomial(R, p) with large R and compare:
+    - CP to statsmodels 'beta'
+    - Normal to manual_wald_cc
+    """
+    print("\n[6] Simulated large case: R=100000, p≈0.25")
     rng = np.random.default_rng(123)
     reps = 100_000
     c = int(rng.binomial(n=reps, p=0.25))
@@ -156,16 +257,11 @@ def test_simulated_large_case():
     lo_sm, hi_sm = proportion_confint(c, reps, alpha=alpha, method="beta")
     t2 = time.perf_counter()
 
-    lo_cp_f: float = float(lo_cp)  # type: ignore[arg-type]
-    hi_cp_f: float = float(hi_cp)  # type: ignore[arg-type]
-    lo_sm_f: float = float(lo_sm)  # type: ignore[arg-type]
-    hi_sm_f: float = float(hi_sm)  # type: ignore[arg-type]
-
     print(f"  CP (c={c})")
-    print(f"    → yours:       ({lo_cp_f:.6f}, {hi_cp_f:.6f})   [{(t1 - t0)*1000:.2f} ms]")
-    print(f"    → statsmodels: ({lo_sm_f:.6f}, {hi_sm_f:.6f})   [{(t2 - t1)*1000:.2f} ms]")
-    assert math.isclose(lo_cp_f, lo_sm_f, rel_tol=TOL, abs_tol=TOL)
-    assert math.isclose(hi_cp_f, hi_sm_f, rel_tol=TOL, abs_tol=TOL)
+    print(f"    → yours:       ({lo_cp:.12f}, {hi_cp:.12f})   [{(t1 - t0)*1000:.2f} ms]")
+    print(f"    → statsmodels: ({lo_sm:.12f}, {hi_sm:.12f})   [{(t2 - t1)*1000:.2f} ms]")
+    assert math.isclose(lo_cp, lo_sm, rel_tol=TOL, abs_tol=TOL)
+    assert math.isclose(hi_cp, hi_sm, rel_tol=TOL, abs_tol=TOL)
 
     # Normal method
     t3 = time.perf_counter()
@@ -174,13 +270,31 @@ def test_simulated_large_case():
     lo_exp, hi_exp = manual_wald_cc(c, reps, alpha)
     t5 = time.perf_counter()
 
-    lo_norm_f = float(lo_norm)  # type: ignore[arg-type]
-    hi_norm_f = float(hi_norm)  # type: ignore[arg-type]
-    lo_exp_f = float(lo_exp)  # type: ignore[arg-type]
-    hi_exp_f = float(hi_exp)  # type: ignore[arg-type]
-
     print("  Normal")
-    print(f"    → yours:    ({lo_norm_f:.6f}, {hi_norm_f:.6f})   [{(t4 - t3)*1000:.2f} ms]")
-    print(f"    → expected: ({lo_exp_f:.6f}, {hi_exp_f:.6f})   [{(t5 - t4)*1000:.2f} ms]")
-    assert math.isclose(lo_norm_f, lo_exp_f, rel_tol=TOL, abs_tol=TOL)
-    assert math.isclose(hi_norm_f, hi_exp_f, rel_tol=TOL, abs_tol=TOL)
+    print(f"    → yours:    ({lo_norm:.12f}, {hi_norm:.12f})   [{(t4 - t3)*1000:.2f} ms]")
+    print(f"    → expected: ({lo_exp:.12f}, {hi_exp:.12f})   [{(t5 - t4)*1000:.2f} ms]")
+    assert math.isclose(lo_norm, lo_exp, rel_tol=TOL, abs_tol=TOL)
+    assert math.isclose(hi_norm, hi_exp, rel_tol=TOL, abs_tol=TOL)
+
+
+# ================================================================== #
+# 7. Fuzzing-lite: random parameter sweeps (robustness)
+# ================================================================== #
+
+
+def test_random_parameter_sweep():
+    """
+    Randomly sample (c, reps, alpha) and check basic invariants for both methods:
+    - No exceptions
+    - Bounds in [0, 1], and lo <= hi
+    """
+    print("\n[7] Random parameter sweep")
+    rng = np.random.default_rng(987)
+    for _ in range(50):
+        reps = int(rng.integers(1, 200))
+        c = int(rng.integers(0, reps + 1))
+        alpha = float(rng.uniform(1e-6, 0.5))  # avoid extreme tails for stability checks
+        for method in ("cp", "normal"):
+            lo, hi = pvalue_ci(c, reps, alpha=alpha, method=method)
+            assert isinstance(lo, float) and isinstance(hi, float)
+            assert 0.0 <= lo <= hi <= 1.0

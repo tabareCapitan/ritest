@@ -4,18 +4,18 @@ repos:
     hooks:
       - id: ruff
         args: [--fix]
-        exclude: ^ritest/legacy-slow/|^benchmarks/Stata/
+        exclude: ^demos/|^ritest/legacy-slow/|^benchmarks/Stata/
       - id: ruff-format
         exclude: ^ritest/legacy-slow/|^benchmarks/Stata/
   - repo: https://github.com/psf/black
     rev: 24.8.0
     hooks:
       - id: black
-        exclude: ^ritest/legacy-slow/|^benchmarks/Stata/
+        exclude: ^demos/|^ritest/legacy-slow/|^benchmarks/Stata/
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
       - id: end-of-file-fixer
-        exclude: ^ritest/legacy-slow/|^benchmarks/Stata/
+        exclude: ^demos/|^ritest/legacy-slow/|^benchmarks/Stata/
       - id: trailing-whitespace
-        exclude: ^ritest/legacy-slow/|^benchmarks/Stata/
+        exclude: ^demos/|^ritest/legacy-slow/|^benchmarks/Stata/

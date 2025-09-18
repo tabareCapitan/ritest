@@ -17,13 +17,14 @@ cluster/strata) happens on *copies* that are returned downstream.
 
 from __future__ import annotations
 
+import re
 import time
 from dataclasses import dataclass, field
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, cast
 
 import numpy as np
 import pandas as pd
-from patsy import PatsyError, dmatrices
+import patsy
 
 
 # --------------------------------------------------------------------- #
@@ -65,14 +66,26 @@ class ValidatedInputs:
 # --------------------------------------------------------------------- #
 # Helpers
 # --------------------------------------------------------------------- #
-def _require(cond: bool, msg: str) -> None:
-    """Tiny helper for readability."""
-    if not cond:
+def _require(cond: object, msg: str) -> None:
+    """Raise ValueError with message if `cond` is falsy (bool-cast)."""
+    if not bool(cond):
         raise ValueError(f"Validation error: {msg}")
 
 
 def _is_numeric_series(s: pd.Series) -> bool:
-    return pd.api.types.is_integer_dtype(s) or pd.api.types.is_float_dtype(s)
+    # Accept ints, floats, and booleans (0/1); everything is coerced to float64 later.
+    t = s.dtype
+    return (
+        pd.api.types.is_integer_dtype(t)
+        or pd.api.types.is_float_dtype(t)
+        or pd.api.types.is_bool_dtype(t)
+    )
+
+
+def _factorize_series_no_na(s: pd.Series) -> np.ndarray:
+    """Factorize a no-NA Series to dense int64 codes, sorted for stability."""
+    codes, _ = pd.factorize(s, sort=True)
+    return codes.astype(np.int64)
 
 
 # --------------------------------------------------------------------- #
@@ -129,70 +142,139 @@ def validate_inputs(
         "alternative must be 'two-sided', 'left', or 'right'",
     )
 
+    # CI parameters used by p-value CIs and coefficient CIs
+    _require(0.0 < float(alpha) < 1.0, "alpha must be in (0, 1)")
+    _require(
+        ci_method in {"cp", "normal"},
+        "ci_method must be 'cp' (Clopper–Pearson) or 'normal' (Wald with continuity correction)",
+    )
+    _require(
+        ci_mode in {"none", "bounds", "grid"},
+        "ci_mode must be 'none', 'bounds', or 'grid'",
+    )
+    _require(ci_range > 0.0, "ci_range must be > 0")
+    _require(ci_step > 0.0, "ci_step must be > 0")
+    _require(ci_tol > 0.0, "ci_tol must be > 0")
+
     # ------------------------------------------------------------------ #
-    # 1. verify permute_var column
+    # 1. verify permute_var column (global)
     # ------------------------------------------------------------------ #
     _require(permute_var in df.columns, f"permute_var '{permute_var}' not in dataframe")
 
-    pseries = df[permute_var]
+    pseries = cast(pd.Series, df[permute_var])
     _require(_is_numeric_series(pseries), "permute_var must be numeric")
     _require(~pseries.isna().any(), "permute_var contains missing values")
+    _require(pseries.nunique(dropna=True) >= 2, "permute_var must have at least 2 distinct values")
 
     # ------------------------------------------------------------------ #
-    # 2. handle cluster / strata (factorise to dense int codes)
+    # 2. preflight: columns existence + no NA (global)
+    #    (Codes/arrays will be *rebuilt on subset* for the formula path.)
     # ------------------------------------------------------------------ #
-    warnings: list[str] = []
+    warnings: List[str] = []
 
-    def _factorize(name: Optional[str]) -> Optional[np.ndarray]:
-        if name is None:
-            return None
-        _require(name in df.columns, f"column '{name}' not in dataframe")
-        col = df[name]
-        _require(~col.isna().any(), f"column '{name}' contains missing values")
-        codes, _ = pd.factorize(col, sort=True)
-        return codes.astype(np.int64)
+    # cluster / strata
+    cluster_codes_full: Optional[np.ndarray] = None
+    strata_codes_full: Optional[np.ndarray] = None
+    if cluster is not None:
+        _require(cluster in df.columns, f"column '{cluster}' not in dataframe")
+        cser = cast(pd.Series, df[cluster])
+        _require(~cser.isna().any(), f"column '{cluster}' contains missing values")
+        cluster_codes_full = _factorize_series_no_na(cser)
+        _require(np.unique(cluster_codes_full).size >= 2, "cluster must have at least 2 groups")
 
-    cluster_codes = _factorize(cluster)
-    strata_codes = _factorize(strata)
+    if strata is not None:
+        _require(strata in df.columns, f"column '{strata}' not in dataframe")
+        sser = cast(pd.Series, df[strata])
+        _require(~sser.isna().any(), f"column '{strata}' contains missing values")
+        strata_codes_full = _factorize_series_no_na(sser)
 
-    # ------------------------------------------------------------------ #
-    # 3. weights
-    # ------------------------------------------------------------------ #
-    weights_arr: np.ndarray | None = None
+    # weights
+    weights_full: Optional[np.ndarray] = None
     if weights is not None:
         _require(weights in df.columns, f"weights column '{weights}' not in dataframe")
-        wser = df[weights]
+        wser = cast(pd.Series, df[weights])
         _require(_is_numeric_series(wser), "weights must be numeric")
         _require(~wser.isna().any(), "weights column has missing values")
         _require((wser > 0).all(), "weights must be strictly positive")
-        weights_arr = wser.to_numpy(dtype=float)
+        weights_full = np.asarray(wser, dtype=float)
+
+    # Optional UX hint: permute_var token in formula
+    if has_formula and formula is not None:
+        token_pat = re.compile(rf"\b{re.escape(permute_var)}\b")
+        if token_pat.search(formula) is None:
+            warnings.append(
+                f"permute_var '{permute_var}' does not appear in the formula; "
+                "you will permute a column not explicitly used in the model."
+            )
+
+    # Heads-up for generic CI settings (actual gating happens in run.py)
+    if has_stat_fn and ci_mode != "none" and not coef_ci_generic:
+        warnings.append(
+            "coef_ci_generic=False with stat_fn: coefficient CI will be skipped. "
+            "Set coef_ci_generic=True to enable generic CI (bounds or grid)."
+        )
 
     # ------------------------------------------------------------------ #
-    # 4. choose linear-model vs stat_fn path
+    # 3. choose linear-model vs stat_fn path
     # ------------------------------------------------------------------ #
     if has_formula:
-        # ---------- 4a. build design matrices ------------------------- #
+        # ---------- 3a. build design matrices (Patsy drops NA rows) --- #
         try:
-            y_mat, X_mat = dmatrices(formula, data=df, return_type="dataframe")
-        except PatsyError as e:
+            dmats = getattr(patsy, "dmatrices")
+            y_mat, X_mat = dmats(formula, data=df, return_type="dataframe")
+        except Exception as e:
+            # Catch broad here to normalize Patsy errors to ValueError with context.
             raise ValueError(f"Invalid formula: {e}")
 
-        y = y_mat.iloc[:, 0].to_numpy(dtype=float)  # (n,)
-        X = X_mat.to_numpy(dtype=float)  # (n,k)
-        T = df[permute_var].to_numpy(dtype=float)
+        # Subset index actually used by Patsy
+        idx = X_mat.index
 
-        # treatment idx
+        # Convert y/X
+        y = np.asarray(y_mat.iloc[:, 0], dtype=float)  # (n,)
+        X = np.asarray(X_mat, dtype=float)  # (n,k)
+
+        # Subset *everything else* to the same rows to keep alignment
+        T_sub = np.asarray(cast(pd.Series, df.loc[idx, permute_var]), dtype=float)
+
+        # Redo factorization on the subset for clean dense codes
+        cluster_codes = (
+            _factorize_series_no_na(cast(pd.Series, df.loc[idx, cluster]))
+            if cluster is not None
+            else None
+        )
+        strata_codes = (
+            _factorize_series_no_na(cast(pd.Series, df.loc[idx, strata]))
+            if strata is not None
+            else None
+        )
+        weights_arr = (
+            np.asarray(cast(pd.Series, df.loc[idx, weights]), dtype=float)
+            if weights is not None
+            else None
+        )
+
+        # Re-check basic invariants on the subset
+        _require(~np.isnan(y).any(), "outcome contains NA")
+        _require(~np.isnan(X).any(), "design matrix contains NA")
+        _require(~np.isnan(T_sub).any(), "permute_var contains NA after subsetting by formula")
+        _require(
+            np.unique(T_sub).size >= 2,
+            "permute_var must have at least 2 distinct values in the analysis sample",
+        )
+        if cluster_codes is not None:
+            _require(
+                np.unique(cluster_codes).size >= 2,
+                "cluster must have at least 2 groups in the analysis sample",
+            )
+
+        # treatment idx (stat must be one of the RHS column names)
         _require(stat in X_mat.columns, f"stat '{stat}' not found among RHS terms of formula")
         treat_idx = list(X_mat.columns).index(stat)
 
-        # no missing in y/X
-        _require(~np.isnan(y).any(), "outcome contains NA")
-        _require(~np.isnan(X).any(), "design matrix contains NA")
-
-        vinputs = ValidatedInputs(
+        return ValidatedInputs(
             y=y,
             X=X,
-            T=T,
+            T=T_sub,
             treat_idx=treat_idx,
             permute_var=permute_var,
             cluster=cluster_codes,
@@ -212,9 +294,8 @@ def validate_inputs(
             warmup_time=0.0,
             warnings=warnings,
         )
-        return vinputs
 
-    # ---------- 4b. stat_fn path ------------------------------------- #
+    # ---------- 3b. stat_fn path ------------------------------------- #
     else:
         # warm-up call to ensure scalar return + measure runtime
         t0 = time.perf_counter()
@@ -231,15 +312,15 @@ def validate_inputs(
         if dt > 1.0:
             warnings.append(f"stat_fn took {dt:.2f}s; permutation test may be slow.")
 
-        vinputs = ValidatedInputs(
+        return ValidatedInputs(
             y=np.empty(0),  # unused in stat_fn mode
             X=np.empty((0, 0)),
-            T=df[permute_var].to_numpy(dtype=float),
+            T=np.asarray(cast(pd.Series, df[permute_var]), dtype=float),
             treat_idx=-1,
             permute_var=permute_var,
-            cluster=cluster_codes,
-            strata=strata_codes,
-            weights=weights_arr,
+            cluster=cluster_codes_full,
+            strata=strata_codes_full,
+            weights=weights_full,
             stat_fn=stat_fn,
             alternative=alternative,
             alpha=alpha,
@@ -249,9 +330,8 @@ def validate_inputs(
             ci_step=ci_step,
             ci_tol=ci_tol,
             coef_ci_generic=coef_ci_generic,
-            has_cluster=cluster_codes is not None,
-            has_strata=strata_codes is not None,
+            has_cluster=cluster_codes_full is not None,
+            has_strata=strata_codes_full is not None,
             warmup_time=dt,
             warnings=warnings,
         )
-        return vinputs
