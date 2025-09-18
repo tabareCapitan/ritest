@@ -19,8 +19,9 @@ from __future__ import annotations
 
 import re
 import time
+import warnings
 from dataclasses import dataclass, field
-from typing import Callable, List, Optional, cast
+from typing import Callable, List, Optional, Tuple, cast
 
 import numpy as np
 import pandas as pd
@@ -73,7 +74,7 @@ def _require(cond: object, msg: str) -> None:
 
 
 def _is_numeric_series(s: pd.Series) -> bool:
-    # Accept ints, floats, and booleans (0/1); everything is coerced to float64 later.
+    # Accept ints, floats, and booleans (0/1); everything else is rejected.
     t = s.dtype
     return (
         pd.api.types.is_integer_dtype(t)
@@ -86,6 +87,44 @@ def _factorize_series_no_na(s: pd.Series) -> np.ndarray:
     """Factorize a no-NA Series to dense int64 codes, sorted for stability."""
     codes, _ = pd.factorize(s, sort=True)
     return codes.astype(np.int64)
+
+
+def _binary_int8_from_series(
+    s: pd.Series, *, name: str, warnings_out: List[str]
+) -> Tuple[np.ndarray, bool]:
+    """
+    Coerce a numeric/boolean Series with *exactly two* distinct values into
+    a dense int8 array of 0/1 labels, mapping the *greater* value to 1.
+    Returns (arr, recoded_flag).
+    """
+    # No NA allowed here; callers ensure that already.
+    vals = s.to_numpy(copy=False)
+    # Compute exact distinct values present (stable, sorted)
+    uniq = np.unique(vals)
+    if uniq.size != 2:
+        raise ValueError(
+            f"permute_var '{name}' must be binary (exactly 2 distinct values), "
+            f"found {uniq.size} distinct values"
+        )
+
+    lo, hi = uniq[0], uniq[1]
+
+    # If exactly {0,1} (int or float), we avoid a user warning; still return int8 for compactness.
+    is_exact_01 = (lo == 0 and hi == 1) or (lo == 0.0 and hi == 1.0)  # ints/bools  # floats
+
+    # Map the *greater* of the two values to 1, the lesser to 0
+    out = (vals == hi).astype(np.int8, copy=False)
+
+    # Warn if not already {0,1} (including booleans or unusual coding like {-1,1}, {2,7}, etc.)
+    if not is_exact_01:
+        msg = (
+            f"permute_var '{name}' has non-{{0,1}} values [{lo!r}, {hi!r}]; "
+            "recoding to {0,1} with 1 mapped to the greater value."
+        )
+        warnings_out.append(msg)
+        warnings.warn(msg, RuntimeWarning, stacklevel=2)
+
+    return out, (not is_exact_01)
 
 
 # --------------------------------------------------------------------- #
@@ -162,15 +201,20 @@ def validate_inputs(
     _require(permute_var in df.columns, f"permute_var '{permute_var}' not in dataframe")
 
     pseries = cast(pd.Series, df[permute_var])
-    _require(_is_numeric_series(pseries), "permute_var must be numeric")
+    _require(_is_numeric_series(pseries), "permute_var must be numeric/boolean")
     _require(~pseries.isna().any(), "permute_var contains missing values")
-    _require(pseries.nunique(dropna=True) >= 2, "permute_var must have at least 2 distinct values")
+
+    # HARD RULE: treatment must be binary.
+    _require(
+        pseries.nunique(dropna=True) == 2,
+        "permute_var must be binary (exactly 2 distinct values)",
+    )
 
     # ------------------------------------------------------------------ #
     # 2. preflight: columns existence + no NA (global)
     #    (Codes/arrays will be *rebuilt on subset* for the formula path.)
     # ------------------------------------------------------------------ #
-    warnings: List[str] = []
+    warnings_list: List[str] = []
 
     # cluster / strata
     cluster_codes_full: Optional[np.ndarray] = None
@@ -202,14 +246,14 @@ def validate_inputs(
     if has_formula and formula is not None:
         token_pat = re.compile(rf"\b{re.escape(permute_var)}\b")
         if token_pat.search(formula) is None:
-            warnings.append(
+            warnings_list.append(
                 f"permute_var '{permute_var}' does not appear in the formula; "
                 "you will permute a column not explicitly used in the model."
             )
 
     # Heads-up for generic CI settings (actual gating happens in run.py)
     if has_stat_fn and ci_mode != "none" and not coef_ci_generic:
-        warnings.append(
+        warnings_list.append(
             "coef_ci_generic=False with stat_fn: coefficient CI will be skipped. "
             "Set coef_ci_generic=True to enable generic CI (bounds or grid)."
         )
@@ -234,7 +278,21 @@ def validate_inputs(
         X = np.asarray(X_mat, dtype=float)  # (n,k)
 
         # Subset *everything else* to the same rows to keep alignment
-        T_sub = np.asarray(cast(pd.Series, df.loc[idx, permute_var]), dtype=float)
+        T_ser = cast(pd.Series, df.loc[idx, permute_var])
+
+        # Re-check basic invariants on the subset
+        _require(~np.isnan(y).any(), "outcome contains NA")
+        _require(~np.isnan(X).any(), "design matrix contains NA")
+        _require(~T_ser.isna().any(), "permute_var contains NA after subsetting by formula")
+        _require(
+            T_ser.nunique(dropna=True) == 2,
+            "permute_var must be binary (exactly 2 distinct values) in the analysis sample",
+        )
+
+        # Coerce to binary int8 0/1, with 1 mapped to the greater value
+        T_sub, recoded = _binary_int8_from_series(
+            T_ser, name=permute_var, warnings_out=warnings_list
+        )
 
         # Redo factorization on the subset for clean dense codes
         cluster_codes = (
@@ -253,14 +311,6 @@ def validate_inputs(
             else None
         )
 
-        # Re-check basic invariants on the subset
-        _require(~np.isnan(y).any(), "outcome contains NA")
-        _require(~np.isnan(X).any(), "design matrix contains NA")
-        _require(~np.isnan(T_sub).any(), "permute_var contains NA after subsetting by formula")
-        _require(
-            np.unique(T_sub).size >= 2,
-            "permute_var must have at least 2 distinct values in the analysis sample",
-        )
         if cluster_codes is not None:
             _require(
                 np.unique(cluster_codes).size >= 2,
@@ -274,7 +324,7 @@ def validate_inputs(
         return ValidatedInputs(
             y=y,
             X=X,
-            T=T_sub,
+            T=T_sub,  # int8 0/1 for memory-compact permutations
             treat_idx=treat_idx,
             permute_var=permute_var,
             cluster=cluster_codes,
@@ -292,7 +342,7 @@ def validate_inputs(
             has_cluster=cluster_codes is not None,
             has_strata=strata_codes is not None,
             warmup_time=0.0,
-            warnings=warnings,
+            warnings=warnings_list,
         )
 
     # ---------- 3b. stat_fn path ------------------------------------- #
@@ -310,12 +360,23 @@ def validate_inputs(
         )
 
         if dt > 1.0:
-            warnings.append(f"stat_fn took {dt:.2f}s; permutation test may be slow.")
+            warnings_list.append(f"stat_fn took {dt:.2f}s; permutation test may be slow.")
+
+        # Coerce full-sample permute_var to binary int8
+        T_ser = cast(pd.Series, df[permute_var])
+        _require(~T_ser.isna().any(), "permute_var contains missing values")
+        _require(
+            T_ser.nunique(dropna=True) == 2,
+            "permute_var must be binary (exactly 2 distinct values)",
+        )
+        T_full, recoded = _binary_int8_from_series(
+            T_ser, name=permute_var, warnings_out=warnings_list
+        )
 
         return ValidatedInputs(
             y=np.empty(0),  # unused in stat_fn mode
             X=np.empty((0, 0)),
-            T=np.asarray(cast(pd.Series, df[permute_var]), dtype=float),
+            T=T_full,  # int8 0/1 for compact permutations
             treat_idx=-1,
             permute_var=permute_var,
             cluster=cluster_codes_full,
@@ -333,5 +394,5 @@ def validate_inputs(
             has_cluster=cluster_codes_full is not None,
             has_strata=strata_codes_full is not None,
             warmup_time=dt,
-            warnings=warnings,
+            warnings=warnings_list,
         )

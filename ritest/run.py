@@ -97,7 +97,7 @@ def ritest(  # noqa: C901
 
     rng = np.random.default_rng(seed)
 
-    # 1) Validate & preprocess
+    # 1) Validate & preprocess (enforces binary treatment and returns T as int8 0/1)
     v = validate_inputs(
         df,
         permute_var=permute_var,
@@ -155,6 +155,9 @@ def ritest(  # noqa: C901
         T_perms = perms
         reps = int(T_perms.shape[0])  # lock reps to provided perms
     else:
+        # NOTE: v.T is int8 0/1 for memory-compact permutations; the engine
+        # preserves dtype, so T_perms is also int8. Assigning into float64 X
+        # casts on write without large intermediate allocations.
         T_perms = generate_permuted_matrix(v.T, reps, cluster=v.cluster, strata=v.strata, rng=rng)
 
     perm_stats = np.empty(reps, dtype=np.float64)
@@ -166,7 +169,7 @@ def ritest(  # noqa: C901
         def _fit_one(args) -> tuple[int, float, float]:
             r, T_perm = args
             Xp = v.X.copy()
-            Xp[:, v.treat_idx] = T_perm
+            Xp[:, v.treat_idx] = T_perm  # int8 → float cast on assignment
             ols_r = FastOLS(
                 v.y, Xp, v.treat_idx, weights=v.weights, cluster=v.cluster, compute_vcov=False
             )
@@ -177,7 +180,7 @@ def ritest(  # noqa: C901
         if n_jobs == 1:
             X_work = v.X.copy()
             for r in range(reps):
-                X_work[:, v.treat_idx] = T_perms[r]
+                X_work[:, v.treat_idx] = T_perms[r]  # int8 → float cast on assignment
                 ols_r = FastOLS(
                     v.y,
                     X_work,
@@ -199,7 +202,7 @@ def ritest(  # noqa: C901
         def _eval_one(args) -> tuple[int, float]:
             r, T_perm = args
             dfp = df.copy(deep=False)
-            dfp[permute_var] = T_perm
+            dfp[permute_var] = T_perm  # pandas will upcast to float when needed
             return r, float(stat_fn_local(dfp))
 
         if n_jobs == 1:
@@ -303,8 +306,6 @@ def ritest(  # noqa: C901
     elif ci_mode == "bounds":
         _band = None
         # KEEP the linear flag: True for linear, False for generic
-        # (previously we forced False here, which broke the test)
-        # _band_valid_linear stays as computed above
     elif ci_mode == "grid":
         _bounds = None
         if (stat_fn is not None) and (not coef_ci_generic):
