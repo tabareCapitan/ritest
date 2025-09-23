@@ -21,7 +21,7 @@ Notes on assumptions
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Iterator, Optional
 
 import numpy as np
 
@@ -359,4 +359,72 @@ def generate_permuted_matrix(
     return perms
 
 
-__all__ = ["permute_assignment", "generate_permuted_matrix"]
+# ------------------------------------------------------------------ #
+# Streaming generator for memory-bounded permutation blocks -------- #
+# ------------------------------------------------------------------ #
+
+
+def iter_permuted_matrix(
+    a: np.ndarray,
+    reps: int,
+    *,
+    cluster: Optional[np.ndarray] = None,
+    strata: Optional[np.ndarray] = None,
+    rng: Optional[np.random.Generator] = None,
+    chunk_rows: Optional[int] = None,
+) -> Iterator[np.ndarray]:
+    """
+    Yield successive `(m, n)` blocks of permuted copies of `a` (same dtype as `a`).
+
+    Parameters
+    ----------
+    a : ndarray
+        Base assignment vector (length n). DTYPE IS PRESERVED in outputs.
+    reps : int
+        Total number of permutations desired.
+    cluster, strata : ndarray, optional
+        Constraints for clustered/stratified permutation (same semantics as
+        `generate_permuted_matrix`).
+    rng : np.random.Generator, optional
+        Random number generator. Reusing a *single* generator across calls ensures
+        determinism regardless of chunk size.
+    chunk_rows : int, optional
+        Maximum number of permutation rows to produce per yielded block.
+        If None or >= reps, a single block of shape (reps, n) is yielded.
+
+    Yields
+    ------
+    block : (m, n) ndarray
+        A block of permuted assignments, where `m = min(chunk_rows, reps_remaining)`.
+
+    Notes
+    -----
+    - This function intentionally does **not** run the clustered uniqueness diagnostic
+      (that heuristic lives in the eager `generate_permuted_matrix`). The iterator
+      is a low-level primitive used by run.py to bound peak RAM.
+    - Determinism: as long as the same RNG instance is passed, the sequence of
+      permutations is identical to what you would get by constructing the full
+      matrix with `generate_permuted_matrix` and iterating its rows in order.
+    """
+    if rng is None:
+        rng = np.random.default_rng()
+
+    if reps < 0:
+        raise ValueError("iter_permuted_matrix: `reps` must be non-negative.")
+    if chunk_rows is None or chunk_rows >= reps:
+        # Single-shot: yield one full block
+        yield generate_permuted_matrix(a, reps, cluster=cluster, strata=strata, rng=rng)
+        return
+
+    n = a.size
+    produced = 0
+    while produced < reps:
+        m = min(chunk_rows, reps - produced)
+        block = np.empty((m, n), dtype=a.dtype)
+        for i in range(m):
+            block[i] = permute_assignment(a, cluster=cluster, strata=strata, rng=rng)
+        produced += m
+        yield block
+
+
+__all__ = ["permute_assignment", "generate_permuted_matrix", "iter_permuted_matrix"]

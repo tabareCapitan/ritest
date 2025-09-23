@@ -59,6 +59,16 @@ DEFAULTS: Dict[str, Any] = {
     "ci_tol": 1e-4,  # bisection tolerance (as *SE* fractions)
     # --- Parallelism ---
     "n_jobs": -1,  # -1 = use all available CPU cores
+    # --- Memory / chunking (internal; used by run.py to bound memory) ---
+    # Soft budget for the in-RAM permutation block. If the full (reps × n × itemsize)
+    # permutation matrix would exceed this budget, run.py will stream permutations
+    # in chunks using engine.shuffle.iter_permuted_matrix(...).
+    #
+    # Default: 256 MiB – conservative on 8–16 GB laptops, and configurable.
+    "perm_chunk_bytes": 256 * 1024 * 1024,
+    # Minimum number of permutation rows per chunk to avoid tiny blocks when n is huge.
+    # Has effect only when chunking is enabled by the budget above.
+    "perm_chunk_min_rows": 64,
 }
 
 # Keep a baseline snapshot to enable full resets.
@@ -111,6 +121,14 @@ def _validate_pair(key: str, val: Any) -> None:
             raise ValueError(f"n_jobs must be an integer (got {val!r})")
         if not (val == -1 or val >= 1):
             raise ValueError("n_jobs must be -1 (all cores) or a positive integer >= 1")
+
+    elif key == "perm_chunk_bytes":
+        if not isinstance(val, int) or val <= 0:
+            raise ValueError(f"perm_chunk_bytes must be a positive integer (bytes, got {val!r})")
+
+    elif key == "perm_chunk_min_rows":
+        if not isinstance(val, int) or val < 1:
+            raise ValueError(f"perm_chunk_min_rows must be an integer >= 1 (got {val!r})")
 
 
 def ritest_set(overrides: Mapping[str, Any]) -> None:

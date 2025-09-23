@@ -4,7 +4,7 @@ import os
 import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor
-from typing import Callable, Dict, Optional, cast
+from typing import Callable, Dict, Optional, Tuple, cast
 
 import numpy as np
 import pandas as pd
@@ -12,8 +12,17 @@ import pandas as pd
 from .ci.coef_ci import Alt, coef_ci_band_fast, coef_ci_bounds_fast, coef_ci_bounds_generic
 from .ci.pvalue_ci import _PValCIMethod, pvalue_ci
 from .config import DEFAULTS
-from .engine.fast_ols import FastOLS
-from .engine.shuffle import generate_permuted_matrix
+
+# FastOLS is the linear-path engine; NUMBA_OK tells us if its kernels are JITed.
+try:
+    from .engine.fast_ols import NUMBA_OK as FAST_OLS_NUMBA_OK  # type: ignore[attr-defined]
+    from .engine.fast_ols import FastOLS
+except Exception:  # pragma: no cover - defensive
+    from .engine.fast_ols import FastOLS  # type: ignore[no-redef]
+
+    FAST_OLS_NUMBA_OK = False  # conservative fallback
+# Permutation providers: eager (full matrix) and streaming (chunked)
+from .engine.shuffle import generate_permuted_matrix, iter_permuted_matrix
 from .results import RitestResult
 from .validation import validate_inputs
 
@@ -42,6 +51,24 @@ def _coerce_ci_method(x: str | _PValCIMethod | None, fallback: _PValCIMethod) ->
     if s in {"normal", "wald"}:
         return "normal"  # type: ignore[return-value]
     return fallback
+
+
+def _bytes_per_row(n_obs: int, label_itemsize: int) -> int:
+    """
+    Estimated bytes required per *row* of the permutation block.
+
+    - If the FastOLS kernels are Numba-JITed (`FAST_OLS_NUMBA_OK`), the
+      permutation labels are consumed as-is (int8), so 1 byte/entry is fine.
+    - Otherwise, NumPy fallbacks may cast to float64 inside the computation
+      path; use 8 bytes/entry to conservatively bound peak memory.
+
+    We take the *max* to be robust if environments differ.
+    """
+    per_entry = 1 if FAST_OLS_NUMBA_OK else 8
+    # In case label_itemsize is larger than 1 (user-provided permutations),
+    # also respect the input size to avoid underestimation.
+    per_entry = max(per_entry, label_itemsize)
+    return n_obs * per_entry
 
 
 def ritest(  # noqa: C901
@@ -94,6 +121,9 @@ def ritest(  # noqa: C901
         bool(cfg["coef_ci_generic"]) if coef_ci_generic is None else bool(coef_ci_generic)
     )
     n_jobs = _coerce_n_jobs(int(cfg.get("n_jobs", 1)) if n_jobs is None else int(n_jobs))
+    # Memory/chunking knobs (soft budget)
+    perm_chunk_bytes = int(cfg.get("perm_chunk_bytes", 256 * 1024 * 1024))
+    perm_chunk_min_rows = int(cfg.get("perm_chunk_min_rows", 64))
 
     rng = np.random.default_rng(seed)
 
@@ -144,7 +174,31 @@ def ritest(  # noqa: C901
                 f"(warmup {v.warmup_time:.3f}s × grid≈{grid_size} × reps={reps})."
             )
 
-    # 3) Permutations (deterministic or prebuilt)
+    # 3) Allocate outputs (small, O(reps))
+    perm_stats = np.empty(reps, dtype=np.float64)
+    K_perm_local = np.empty(reps, dtype=np.float64) if linear_model else None
+
+    # Helper workers (capture `v`, `t_metric_lin` by closure)
+    def _fit_one(args: Tuple[int, np.ndarray]) -> Tuple[int, float, float]:
+        """Linear-path worker: (abs_index, T_perm_row) -> (abs_index, beta_r, Kr)."""
+        r_abs, T_perm = args
+        Xp = v.X.copy()
+        Xp[:, v.treat_idx] = T_perm  # int8 → float cast on assignment
+        ols_r = FastOLS(
+            v.y, Xp, v.treat_idx, weights=v.weights, cluster=v.cluster, compute_vcov=False
+        )
+        beta_r = float(ols_r.beta_hat)
+        Kr = float(ols_r.c_vector @ t_metric_lin)  # type: ignore[arg-type]
+        return r_abs, beta_r, Kr
+
+    def _eval_one(args: Tuple[int, np.ndarray]) -> Tuple[int, float]:
+        """Generic-path worker: (abs_index, T_perm_row) -> (abs_index, stat_r)."""
+        r_abs, T_perm = args
+        dfp = df.copy(deep=False)
+        dfp[permute_var] = T_perm  # pandas will upcast to float when needed
+        return r_abs, float(stat_fn_local(dfp))  # type: ignore[arg-type]
+
+    # 4) Permutations: prebuilt, eager, or chunked (deterministic in all cases)
     if permutations is not None:
         # Expect shape (reps, n), where rows are permuted T-label vectors
         perms = np.asarray(permutations)
@@ -152,68 +206,159 @@ def ritest(  # noqa: C901
             raise ValueError(
                 f"permutations must have shape (reps, n={v.T.shape[0]}), got {perms.shape}"
             )
-        T_perms = perms
-        reps = int(T_perms.shape[0])  # lock reps to provided perms
+        if perms.shape[0] != reps:
+            # Honor the supplied matrix size as the true reps
+            reps = int(perms.shape[0])
+            perm_stats = np.empty(reps, dtype=np.float64)
+            if linear_model:
+                K_perm_local = np.empty(reps, dtype=np.float64)
+        # Process rows directly (no chunking for user-supplied matrix)
+        if linear_model:
+            if n_jobs == 1:
+                X_work = v.X.copy()
+                for r in range(reps):
+                    X_work[:, v.treat_idx] = perms[r]
+                    ols_r = FastOLS(
+                        v.y,
+                        X_work,
+                        v.treat_idx,
+                        weights=v.weights,
+                        cluster=v.cluster,
+                        compute_vcov=False,
+                    )
+                    perm_stats[r] = float(ols_r.beta_hat)
+                    K_perm_local[r] = float(ols_r.c_vector @ t_metric_lin)  # type: ignore[index]
+            else:
+                with ThreadPoolExecutor(max_workers=n_jobs) as ex:
+                    for r_abs, beta_r, Kr in ex.map(
+                        lambda a: _fit_one(a), ((r, perms[r]) for r in range(reps))
+                    ):
+                        perm_stats[r_abs] = beta_r
+                        K_perm_local[r_abs] = Kr  # type: ignore[index]
+        else:
+            if n_jobs == 1:
+                for r in range(reps):
+                    dfp = df.copy(deep=False)
+                    dfp[permute_var] = perms[r]
+                    perm_stats[r] = float(stat_fn_local(dfp))  # type: ignore[arg-type]
+            else:
+                with ThreadPoolExecutor(max_workers=n_jobs) as ex:
+                    for r_abs, z in ex.map(
+                        lambda a: _eval_one(a), ((r, perms[r]) for r in range(reps))
+                    ):
+                        perm_stats[r_abs] = z
     else:
-        # NOTE: v.T is int8 0/1 for memory-compact permutations; the engine
-        # preserves dtype, so T_perms is also int8. Assigning into float64 X
-        # casts on write without large intermediate allocations.
-        T_perms = generate_permuted_matrix(v.T, reps, cluster=v.cluster, strata=v.strata, rng=rng)
+        # Decide whether to allocate the full (reps, n) matrix or stream in chunks.
+        n_obs = v.T.shape[0]
+        itemsize = int(v.T.dtype.itemsize)  # int8 => 1
+        bpr = _bytes_per_row(n_obs, itemsize)  # conservative when Numba is unavailable
+        full_bytes = reps * bpr
 
-    perm_stats = np.empty(reps, dtype=np.float64)
-
-    # 4) Evaluate statistic over permutations
-    if linear_model:
-        K_perm_local = np.empty(reps, dtype=np.float64)
-
-        def _fit_one(args) -> tuple[int, float, float]:
-            r, T_perm = args
-            Xp = v.X.copy()
-            Xp[:, v.treat_idx] = T_perm  # int8 → float cast on assignment
-            ols_r = FastOLS(
-                v.y, Xp, v.treat_idx, weights=v.weights, cluster=v.cluster, compute_vcov=False
+        if full_bytes <= perm_chunk_bytes:
+            # Eager path: build full matrix (current behavior)
+            T_perms = generate_permuted_matrix(
+                v.T, reps, cluster=v.cluster, strata=v.strata, rng=rng
             )
-            beta_r = float(ols_r.beta_hat)
-            Kr = float(ols_r.c_vector @ t_metric_lin)  # type: ignore[arg-type]
-            return r, beta_r, Kr
+            if linear_model:
+                if n_jobs == 1:
+                    X_work = v.X.copy()
+                    for r in range(reps):
+                        X_work[:, v.treat_idx] = T_perms[r]
+                        ols_r = FastOLS(
+                            v.y,
+                            X_work,
+                            v.treat_idx,
+                            weights=v.weights,
+                            cluster=v.cluster,
+                            compute_vcov=False,
+                        )
+                        perm_stats[r] = float(ols_r.beta_hat)
+                        K_perm_local[r] = float(ols_r.c_vector @ t_metric_lin)  # type: ignore[index]
+                else:
+                    with ThreadPoolExecutor(max_workers=n_jobs) as ex:
+                        for r, beta_r, Kr in ex.map(
+                            _fit_one, ((r, T_perms[r]) for r in range(reps))
+                        ):
+                            perm_stats[r] = beta_r
+                            K_perm_local[r] = Kr  # type: ignore[index]
+            else:
+                if n_jobs == 1:
+                    for r in range(reps):
+                        dfp = df.copy(deep=False)
+                        dfp[permute_var] = T_perms[r]
+                        perm_stats[r] = float(stat_fn_local(dfp))  # type: ignore[arg-type]
+                else:
+                    with ThreadPoolExecutor(max_workers=n_jobs) as ex:
+                        for r, z in ex.map(_eval_one, ((r, T_perms[r]) for r in range(reps))):
+                            perm_stats[r] = z
+        else:
+            # Streaming path: generate blocks with bounded memory and process each in turn.
+            # Choose chunk_rows from budget; enforce a sensible minimum.
+            chunk_rows = max(perm_chunk_min_rows, perm_chunk_bytes // max(bpr, 1))
+            if chunk_rows <= 0:  # ultra-conservative fallback
+                chunk_rows = perm_chunk_min_rows
 
-        if n_jobs == 1:
-            X_work = v.X.copy()
-            for r in range(reps):
-                X_work[:, v.treat_idx] = T_perms[r]  # int8 → float cast on assignment
-                ols_r = FastOLS(
-                    v.y,
-                    X_work,
-                    v.treat_idx,
-                    weights=v.weights,
+            r0 = 0  # absolute write position into perm_stats / K_perm_local
+            if n_jobs == 1:
+                # Serial evaluation per block
+                X_work: Optional[np.ndarray] = None
+                if linear_model:
+                    X_work = v.X.copy()
+
+                for block in iter_permuted_matrix(
+                    v.T,
+                    reps,
                     cluster=v.cluster,
-                    compute_vcov=False,
-                )
-                perm_stats[r] = float(ols_r.beta_hat)
-                K_perm_local[r] = float(ols_r.c_vector @ t_metric_lin)  # type: ignore[arg-type]
-        else:
-            with ThreadPoolExecutor(max_workers=n_jobs) as ex:
-                for r, beta_r, Kr in ex.map(_fit_one, enumerate(T_perms)):
-                    perm_stats[r] = beta_r
-                    K_perm_local[r] = Kr
-    else:
-        stat_fn_local = cast(Callable[[pd.DataFrame], float], v.stat_fn)
-
-        def _eval_one(args) -> tuple[int, float]:
-            r, T_perm = args
-            dfp = df.copy(deep=False)
-            dfp[permute_var] = T_perm  # pandas will upcast to float when needed
-            return r, float(stat_fn_local(dfp))
-
-        if n_jobs == 1:
-            for r in range(reps):
-                dfp = df.copy(deep=False)
-                dfp[permute_var] = T_perms[r]
-                perm_stats[r] = float(stat_fn_local(dfp))
-        else:
-            with ThreadPoolExecutor(max_workers=n_jobs) as ex:
-                for r, z in ex.map(_eval_one, enumerate(T_perms)):
-                    perm_stats[r] = z
+                    strata=v.strata,
+                    rng=rng,
+                    chunk_rows=int(chunk_rows),
+                ):
+                    m = block.shape[0]
+                    if linear_model:
+                        Xw = cast(np.ndarray, X_work)
+                        for i in range(m):
+                            Xw[:, v.treat_idx] = block[i]
+                            ols_r = FastOLS(
+                                v.y,
+                                Xw,
+                                v.treat_idx,
+                                weights=v.weights,
+                                cluster=v.cluster,
+                                compute_vcov=False,
+                            )
+                            perm_stats[r0 + i] = float(ols_r.beta_hat)
+                            K_perm_local[r0 + i] = float(ols_r.c_vector @ t_metric_lin)  # type: ignore[index]
+                    else:
+                        for i in range(m):
+                            dfp = df.copy(deep=False)
+                            dfp[permute_var] = block[i]
+                            perm_stats[r0 + i] = float(stat_fn_local(dfp))  # type: ignore[arg-type]
+                    r0 += m
+            else:
+                # Parallel evaluation per block; keep one pool for the entire run.
+                with ThreadPoolExecutor(max_workers=n_jobs) as ex:
+                    for block in iter_permuted_matrix(
+                        v.T,
+                        reps,
+                        cluster=v.cluster,
+                        strata=v.strata,
+                        rng=rng,
+                        chunk_rows=int(chunk_rows),
+                    ):
+                        m = block.shape[0]
+                        if linear_model:
+                            # Map absolute indices to rows in the current block
+                            for r_abs, beta_r, Kr in ex.map(
+                                _fit_one, ((r0 + i, block[i]) for i in range(m))
+                            ):
+                                perm_stats[r_abs] = beta_r
+                                K_perm_local[r_abs] = Kr  # type: ignore[index]
+                        else:
+                            for r_abs, z in ex.map(
+                                _eval_one, ((r0 + i, block[i]) for i in range(m))
+                            ):
+                                perm_stats[r_abs] = z
+                        r0 += m
 
     # 5) P-value + CI for p
     if alternative == "two-sided":
@@ -239,7 +384,7 @@ def ritest(  # noqa: C901
                     beta_obs=obs_stat,
                     beta_perm=perm_stats,
                     K_obs=K_obs,  # type: ignore[arg-type]
-                    K_perm=K_perm_local,  # type: ignore[arg-type]
+                    K_perm=cast(np.ndarray, K_perm_local),  # type: ignore[arg-type]
                     se=se_obs,
                     alpha=alpha,
                     ci_range=ci_range,
@@ -251,7 +396,7 @@ def ritest(  # noqa: C901
                     beta_obs=obs_stat,
                     beta_perm=perm_stats,
                     K_obs=K_obs,  # type: ignore[arg-type]
-                    K_perm=K_perm_local,  # type: ignore[arg-type]
+                    K_perm=cast(np.ndarray, K_perm_local),  # type: ignore[arg-type]
                     se=se_obs,
                     ci_range=ci_range,
                     ci_step=ci_step,

@@ -199,8 +199,8 @@ def main() -> None:
     alt: Alt = cast(Alt, args.alt)  # narrow CLI string to the Literal type
 
     run_minimal(df, reps=args.reps, seed=123, alt=alt)
-    run_bounds(df, reps=args.reps, seed=123, alt=alt)
-    run_band(df, grid_reps=args.grid_reps, seed=123, alt=alt, plot=args.plot, outpath=args.out)
+    # run_bounds(df, reps=args.reps, seed=123, alt=alt)
+    # run_band(df, grid_reps=args.grid_reps, seed=123, alt=alt, plot=args.plot, outpath=args.out)
 
 
 if __name__ == "__main__":
