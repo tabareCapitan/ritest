@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ritest"
+version = "0.1.0"
+description = "Randomization inference (permutation tests & inversion CIs) for Python."
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [{ name = "tabarecapitan.com" }]
+dependencies = [
+  "numpy",
+  "pandas",
+  "patsy",
+  "scipy",
+  "matplotlib",
+]
+# Optional speed-up for users who want JIT; not required to run.
+[project.optional-dependencies]
+numba = ["numba"]
+dev = [
+  "pytest",
+  "pytest-cov",
+  "statsmodels",
+  "ruff",
+  "black",
+  "mypy",
+  "pre-commit",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ritest*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = ["ritest/legacy-slow"]
+
+[tool.ruff.lint]
+extend-select = ["I"]      # import sorting
+extend-ignore = ["E741"]   # allow 'l', 'O', etc., if you really need them
+
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+extend-exclude = "ritest/legacy-slow"
+
+[tool.pytest.ini_options]
+addopts = "-q --maxfail=1 --disable-warnings"
+testpaths = ["tests"]
+norecursedirs = ["ritest/legacy-slow"]
+
+[tool.coverage.run]
+branch = true
+source = ["ritest"]
+omit = ["ritest/legacy-slow/*"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+strict = false
