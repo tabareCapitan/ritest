@@ -1,11 +1,17 @@
 """
-ritest.ci.coef_ci
-=================
+Coefficient CI utilities for permutation-based inference.
 
-Coefficient CI utilities for permutation inference.
+Two pathways are supported:
 
-* Fast path:  β̂ = cᵀy models (OLS/WLS) — dot-product only
-* Generic:    any model — rerun `ritest()` for each β₀
+1. Fast path (OLS/WLS models):
+   Uses the identity β̂ = cᵀy and precomputed permutation quantities. All
+   evaluations for candidate β₀ values reduce to vectorised arithmetic.
+
+2. Generic path (stat_fn models):
+   For non-linear or arbitrary estimators, the user supplies a runner
+   that recomputes the permutation p-value for each β₀.
+
+These functions return either the full (β₀, p-value) curve or CI bounds.
 """
 
 from __future__ import annotations
@@ -18,7 +24,7 @@ Alt = Literal["two-sided", "left", "right"]
 
 
 # ------------------------------------------------------------------ #
-# 1) FAST CI band: full p(β₀) curve over a grid (vectorised)
+# 1) FAST band: full p(β₀) curve (vectorised)
 # ------------------------------------------------------------------ #
 def coef_ci_band_fast(
     beta_obs: float,
@@ -32,24 +38,42 @@ def coef_ci_band_fast(
     alternative: Alt = "two-sided",
 ) -> tuple[np.ndarray, np.ndarray]:
     """
-    Compute (β₀, p-value) curve for linear models via vectorisation.
+    Compute a vectorised (β₀, p-value) curve for linear models.
 
-    For each candidate β₀ on a grid, we evaluate the permutation p-value using
-    the identities:
+    For each candidate β₀, the observed and permuted statistics are shifted via:
 
-        β_obs(β0)  = β_obs  − β0 · K_obs
-        β_r  (β0)  = β_r    − β0 · K_r
+        β_obs(β₀) = β_obs − β₀ · K_obs
+        β_r(β₀)   = β_r   − β₀ · K_r
 
-    where K_obs = c_obsᵀ T_obs,metric and K_r = c_rᵀ T_obs,metric.
+    where K_obs = c_obsᵀ T_metric and K_r = c_rᵀ T_metric.
+
+    Parameters
+    ----------
+    beta_obs : float
+        Observed treatment coefficient.
+    beta_perm : (R,) array
+        Permuted coefficients.
+    K_obs : float
+        Observed cᵀ T_metric value.
+    K_perm : (R,) array
+        Permuted cᵀ T_metric values.
+    se : float
+        Standard error used to size the grid in SE units.
+    ci_range : float
+        Half-width of the grid, in SE units.
+    ci_step : float
+        Spacing of the grid, in SE units.
+    alternative : {"two-sided", "left", "right"}
+        Which tail to use for the p-value definition.
 
     Returns
     -------
-    grid : np.ndarray
-        β values to test (float64).
-    pvals : np.ndarray
-        Corresponding permutation p-values (float64).
+    grid : ndarray
+        Grid of β₀ values.
+    pvals : ndarray
+        Corresponding permutation p-values.
     """
-    # --- light sanity checks (public validation happens upstream) ----
+    # Basic consistency checks (detailed validation happens upstream)
     beta_perm = np.asarray(beta_perm, dtype=np.float64)
     K_perm = np.asarray(K_perm, dtype=np.float64)
     if beta_perm.ndim != 1 or K_perm.ndim != 1 or beta_perm.shape != K_perm.shape:
@@ -61,31 +85,31 @@ def coef_ci_band_fast(
     if not (se > 0.0 and ci_range > 0.0 and ci_step > 0.0):
         raise ValueError("se, ci_range, and ci_step must be positive")
 
-    # Identifiability: if both K_obs and all K_perm are zero, p(β0) is constant.
+    # If both K_obs and all K_perm are zero, the statistic is invariant to β₀.
     if K_obs == 0.0 and np.all(K_perm == 0.0):
         grid = (
             np.arange(-ci_range * se, ci_range * se + 1e-12, ci_step * se, dtype=np.float64)
             + beta_obs
         )
-        # Constant p-values irrespective of β0 (informative for diagnostics).
+        # Constant p-values in this degenerate case
         if alternative == "two-sided":
             p = (np.abs(beta_perm) >= abs(beta_obs)).mean()
         elif alternative == "right":
             p = (beta_perm >= beta_obs).mean()
-        else:
+        else:  # "left"
             p = (beta_perm <= beta_obs).mean()
         return grid, np.full_like(grid, float(p), dtype=np.float64)
 
-    # --- build grid and broadcasted arrays -------------------------------
+    # Build grid of β₀ values
     grid = (
         np.arange(-ci_range * se, ci_range * se + 1e-12, ci_step * se, dtype=np.float64) + beta_obs
     )
 
-    # crit: shape (G,), dist: shape (R,G)
-    crit = beta_obs - K_obs * grid  # β_obs(β0)
-    dist = beta_perm[:, None] - K_perm[:, None] * grid[None, :]  # β_r(β0)
+    # crit: shape (G,), dist: shape (R, G)
+    crit = beta_obs - K_obs * grid
+    dist = beta_perm[:, None] - K_perm[:, None] * grid[None, :]
 
-    # Tail-specific comparisons
+    # Tail comparisons
     if alternative == "two-sided":
         comp = np.abs(dist) >= np.abs(crit)[None, :]
     elif alternative == "right":
@@ -98,7 +122,7 @@ def coef_ci_band_fast(
 
 
 # ------------------------------------------------------------------ #
-# 2) FAST CI bounds (derived from the band; no brittle bisection)
+# 2) FAST bounds: derived from the band
 # ------------------------------------------------------------------ #
 def coef_ci_bounds_fast(
     beta_obs: float,
@@ -113,14 +137,11 @@ def coef_ci_bounds_fast(
     alternative: Alt = "two-sided",
 ) -> Tuple[float, float]:
     """
-    Compute fast CI bounds for linear models using the cᵀy trick.
+    CI bounds for linear models via the vectorised fast band.
 
-    This computes the vectorised band once and returns bounds as the outermost
-    grid points with p(β₀) ≥ α. One-sided intervals are open on the far side.
-
-    Returns
-    -------
-    (lower, upper) : CI bounds (float or ±inf for one-sided)
+    The permutation p-value curve is computed once. The CI consists of the
+    outermost β₀ values where p(β₀) ≥ α. For one-sided tests, the CI is open
+    on the far side and uses ±∞ where appropriate.
     """
     if not (0.0 < float(alpha) < 1.0):
         raise ValueError("alpha must be in (0, 1)")
@@ -150,7 +171,7 @@ def coef_ci_bounds_fast(
 
 
 # ------------------------------------------------------------------ #
-# 3) GENERIC CI bounds (slow fallback for stat_fn models)
+# 3) GENERIC bounds: stat_fn fallback
 # ------------------------------------------------------------------ #
 def coef_ci_bounds_generic(
     beta_obs: float,
@@ -163,16 +184,17 @@ def coef_ci_bounds_generic(
     alternative: Alt = "two-sided",
 ) -> Tuple[float, float]:
     """
-    Fallback CI via full re-evaluation of stat_fn at each β₀.
+    Slow, model-agnostic CI built by re-evaluating p(β₀) for each grid point.
 
     Parameters
     ----------
     runner : callable
-        Function `runner(beta0)` that returns permutation p-value.
+        Function ``runner(beta0)`` returning a permutation p-value.
 
-    Returns
-    -------
-    (lower, upper) : CI bounds
+    Notes
+    -----
+    - Used when the estimator is not linear in the sufficient statistic.
+    - Makes no assumptions about structure; cost grows with grid size.
     """
     if not (se > 0.0 and ci_range > 0.0 and ci_step > 0.0):
         raise ValueError("se, ci_range, and ci_step must be positive")
