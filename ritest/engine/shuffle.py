@@ -1,22 +1,25 @@
 """
-ritest.engine.shuffle
-=====================
+Permutation helpers with optional Numba acceleration.
 
-Fast permutation helpers with optional Numba acceleration.
+Implements plain, stratified, clustered, and cluster-within-strata
+rearrangements for assignment vectors. Upstream validation handles
+types and missing-value rules; this module focuses on fast and
+deterministic reshuffling.
 
 Design
 ------
-* Four flavours: plain, strata, cluster, cluster-within-strata.
-* Validation & dtype checking happens upstream.
-* If Numba is available, heavy loops are JIT-compiled; otherwise we
-  fall back to vectorised NumPy versions. Either path returns the same result.
+- Four modes: plain, strata, cluster, and cluster-within-strata.
+- Numba paths are used when available; otherwise NumPy fallbacks are used.
+- All implementations return identical results across Numba/NumPy variants.
+- Strata and cluster labels need not be contiguous; all paths support
+  arbitrary ordering.
 
-Notes on assumptions
---------------------
-* Cluster modes assume `a` is cluster-constant (one value per cluster).
-  This is asserted inside `permute_assignment` for safety.
-* The stratified Numba path previously assumed strata were contiguous; this is
-  FIXED by scattering via explicit indices, so strata may be non-contiguous.
+Assumptions
+-----------
+- Cluster-based permutations require that `a` is constant within clusters.
+  This is checked once using a vectorised consistency test.
+- Stratified Numba path supports non-contiguous strata using explicit index
+  scatter operations.
 """
 
 from __future__ import annotations
@@ -30,6 +33,7 @@ try:
 
     NUMBA_OK = True
 except ImportError:
+    # Safe fallbacks that preserve call signatures when Numba is absent
     NUMBA_OK = False
 
     def njit(*args, **kwargs):  # noqa: D401
@@ -38,15 +42,16 @@ except ImportError:
 
         return wrapper
 
-    prange = range  # Safe fallback
+    prange = range
 
 
 # ------------------------------------------------------------------ #
-# Plain shuffle – NumPy only (fast enough, no loop to JIT)
+# Plain shuffle
 # ------------------------------------------------------------------ #
 
 
 def _permute_plain(a: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+    """Global permutation of `a` (no constraints)."""
     return rng.permutation(a)
 
 
@@ -60,6 +65,7 @@ def _np_perm_strata(
     strata: np.ndarray,
     rng: np.random.Generator,
 ) -> np.ndarray:
+    """NumPy implementation: permute `a` independently within each stratum."""
     out = a.copy()
     for s in np.unique(strata):
         idx = np.where(strata == s)[0]
@@ -72,18 +78,27 @@ if NUMBA_OK:
     @njit(parallel=True)
     def _nb_scatter_by_index(out, idx, vals):
         """
-        Scatter `vals` into `out` at positions `idx`. Supports non-contiguous strata.
+        Scatter values into selected positions.
 
-        Requirements:
-        - `idx` must contain each target position at most once (unique indices).
-        - `idx.size == vals.size`.
+        Parameters
+        ----------
+        out : array
+            Destination array.
+        idx : array
+            Target positions (unique and same length as `vals`).
+        vals : array
+            Values to place at `idx`.
+
+        Notes
+        -----
+        Used for stratified shuffling with non-contiguous strata.
         """
         for i in prange(idx.size):
             out[idx[i]] = vals[i]
 
 
 # ------------------------------------------------------------------ #
-# Cluster shuffle (no strata)
+# Cluster shuffle
 # ------------------------------------------------------------------ #
 
 
@@ -93,12 +108,15 @@ def _np_perm_cluster(
     rng: np.random.Generator,
 ) -> np.ndarray:
     """
-    Vectorised O(n + G) implementation using return_inverse.
+    Vectorised cluster-level permutation.
+
+    One representative value per cluster is permuted, then broadcast back
+    to members using inverse indexing.
     """
     clusters, first_idx, inv = np.unique(cluster, return_index=True, return_inverse=True)
-    cluster_vals = a[first_idx]  # one value per cluster
+    cluster_vals = a[first_idx]
     perm_vals = cluster_vals[rng.permutation(clusters.size)]
-    out = perm_vals[inv]  # broadcast permuted cluster values to members
+    out = perm_vals[inv]
     return out
 
 
@@ -106,12 +124,13 @@ if NUMBA_OK:
 
     @njit(parallel=True)
     def _nb_broadcast_cluster(out, cluster, perm_map):
+        """Broadcast permuted cluster-level values to all rows."""
         for i in prange(cluster.size):
             out[i] = perm_map[cluster[i]]
 
 
 # ------------------------------------------------------------------ #
-# Cluster-within-strata shuffle  (NumPy implementation = reference)
+# Cluster-within-strata shuffle
 # ------------------------------------------------------------------ #
 
 
@@ -122,23 +141,26 @@ def _np_perm_cluster_strata(
     rng: np.random.Generator,
 ) -> np.ndarray:
     """
-    Vectorised O(n + sum_s G_s) implementation: per stratum, permute cluster-level
-    values and broadcast via return_inverse.
+    Cluster permutation applied separately within each stratum.
+
+    For each stratum:
+    - Identify clusters present,
+    - Permute the cluster representatives,
+    - Broadcast to the units belonging to that stratum.
     """
     out = np.empty_like(a)
     for s in np.unique(strata):
         mask = strata == s
-        # Unique clusters within this stratum, and inverse map back to rows in the stratum
         clust_s = cluster[mask]
         clust_ids, first_idx, inv = np.unique(clust_s, return_index=True, return_inverse=True)
-        vals = a[mask][first_idx]  # one representative value per (stratum, cluster)
+        vals = a[mask][first_idx]
         perm_vals = vals[rng.permutation(clust_ids.size)]
         out[mask] = perm_vals[inv]
     return out
 
 
 # ------------------------------------------------------------------ #
-# Small helpers (guards)
+# Validation helpers
 # ------------------------------------------------------------------ #
 
 
@@ -146,12 +168,11 @@ def _assert_cluster_constant(a: np.ndarray, cluster: np.ndarray) -> None:
     """
     Require that `a` is constant within each cluster.
 
-    Vectorised check:
-    - Map each row to its cluster's first value (via return_inverse),
-      then compare to `a`.
+    Uses a representative-per-cluster vector and inverse indexing to
+    verify that all rows in each cluster share the same value.
     """
     clusters, first_idx, inv = np.unique(cluster, return_index=True, return_inverse=True)
-    first_vals = a[first_idx]  # one representative per cluster
+    first_vals = a[first_idx]
     expected = first_vals[inv]
     if not np.all(a == expected):
         raise ValueError(
@@ -162,13 +183,12 @@ def _assert_cluster_constant(a: np.ndarray, cluster: np.ndarray) -> None:
 
 def _can_use_numba_cluster(cluster: np.ndarray) -> bool:
     """
-    Decide if the Numba cluster path (perm_map of length max_label+1) is safe.
+    Check whether dense-label Numba cluster broadcasting is safe.
 
-    Conditions:
-    - integer dtype
-    - non-negative labels
-    - label span not wildly larger than number of unique clusters
-      (avoid allocating huge sparse maps). Threshold: span <= 4 * n_unique.
+    Requirements:
+    - Non-negative integer labels.
+    - Label span not excessively larger than number of unique clusters,
+      enforced via a span <= 4 × n_unique heuristic.
     """
     if not np.issubdtype(cluster.dtype, np.integer):
         return False
@@ -177,13 +197,14 @@ def _can_use_numba_cluster(cluster: np.ndarray) -> bool:
         return False
     cmax = int(np.max(cluster))
     n_unique = np.unique(cluster).size
-    span = cmax + 1  # since cmin >= 0
+    span = cmax + 1
     return span <= 4 * n_unique
 
 
 def _check_lengths(
     a: np.ndarray, cluster: Optional[np.ndarray], strata: Optional[np.ndarray]
 ) -> None:
+    """Ensure optional cluster/strata vectors match the length of `a`."""
     n = a.size
     if cluster is not None and cluster.size != n:
         raise ValueError("permute_assignment: `cluster` length must match `a`.")
@@ -206,28 +227,31 @@ def permute_assignment(
     """
     Return a permuted copy of `a` according to the requested scheme.
 
-    Modes:
-    - Plain: global permutation of `a`.
-    - Stratified: permute within each stratum (counts preserved per stratum).
-      (Numba path supports non-contiguous strata via index scatter.)
-    - Cluster: permute cluster-level values and broadcast to members.
-      (Requires `a` to be cluster-constant.)
-    - Cluster within strata: cluster-wise permutation separately inside each stratum.
+    Modes
+    -----
+    Plain:
+        Full permutation of `a`.
+    Stratified:
+        Permute within each stratum; counts preserved per stratum.
+    Cluster:
+        Permute cluster-level values and broadcast to members.
+        Requires `a` to be constant within clusters.
+    Cluster-within-strata:
+        Apply cluster-wise permutation separately inside each stratum.
     """
     if rng is None:
         rng = np.random.default_rng()
 
     _check_lengths(a, cluster, strata)
 
-    # 1. Plain -------------------------------------------------------- #
+    # Plain ------------------------------------------------------------- #
     if cluster is None and strata is None:
         return _permute_plain(a, rng)
 
-    # 2. Stratified only --------------------------------------------- #
+    # Stratified --------------------------------------------------------- #
     if cluster is None and strata is not None:
         if NUMBA_OK:
-            # Build concatenated indices and permuted values per stratum.
-            # This supports NON-CONTIGUOUS strata robustly.
+            # Build index/value lists for all strata; supports arbitrary ordering.
             idx_list = []
             vals_list = []
             for s in np.unique(strata):
@@ -241,38 +265,32 @@ def permute_assignment(
             return out
         return _np_perm_strata(a, strata, rng)
 
-    # 3. Cluster only ------------------------------------------------- #
+    # Cluster ------------------------------------------------------------ #
     if cluster is not None and strata is None:
-        # Consistency requirement for cluster modes
         _assert_cluster_constant(a, cluster)
 
         if NUMBA_OK and _can_use_numba_cluster(cluster):
             clusters, first_idx = np.unique(cluster, return_index=True)
             cluster_vals = a[first_idx]
             perm_vals = cluster_vals[rng.permutation(len(cluster_vals))]
-            # Dense non-negative labels guaranteed by _can_use_numba_cluster
             perm_map = np.empty(int(cluster.max()) + 1, dtype=a.dtype)
             perm_map[clusters] = perm_vals
             out = np.empty_like(a)
             _nb_broadcast_cluster(out, cluster, perm_map)
             return out
-        # Fallback (label-agnostic, now vectorised)
+
         return _np_perm_cluster(a, cluster, rng)
 
-    # 4. Cluster *within* strata  ➜ always NumPy for correctness
+    # Cluster within strata --------------------------------------------- #
     if cluster is not None and strata is not None:
-        # Consistency requirement for cluster modes
         _assert_cluster_constant(a, cluster)
-        # NOTE: A previous Numba impl had OOB risk with non-dense labels per stratum.
-        # We keep the reference NumPy version for clarity and safety (now vectorised).
         return _np_perm_cluster_strata(a, cluster, strata, rng)
 
-    # Should never reach here
     raise ValueError("Unhandled permutation mode.")
 
 
 # ------------------------------------------------------------------ #
-# Generate matrix of permuted assignments  (called from run.py) ---- #
+# Full permutation matrix
 # ------------------------------------------------------------------ #
 
 
@@ -290,27 +308,18 @@ def generate_permuted_matrix(
     Parameters
     ----------
     a : ndarray
-        Treatment assignment vector to permute (length n).
+        Base assignment vector.
     reps : int
-        Number of permutations to generate.
-    cluster : ndarray, optional
-        Cluster labels for cluster-wise permutation.
-    strata : ndarray, optional
-        Stratum labels for stratified permutation.
-    rng : np.random.Generator, optional
-        Random number generator (reused across draws).
-
-    Returns
-    -------
-    perms : (reps, n) ndarray
-        Each row is an independently permuted version of `a`.
+        Number of permutations.
+    cluster, strata : ndarray, optional
+        Mode selectors; see `permute_assignment`.
+    rng : Generator, optional
+        RNG reused across draws for reproducibility.
 
     Notes
     -----
-    - If `cluster` or `strata` are passed, permutations are constrained accordingly.
-    - A light uniqueness diagnostic is run for clustered modes only, using a
-      compressed view at cluster (or stratum×cluster) representatives and optional
-      downsampling.
+    - For clustered modes, a lightweight uniqueness heuristic is run to detect
+      extreme degeneracy in cluster-wise permutations.
     """
     if rng is None:
         rng = np.random.default_rng()
@@ -327,22 +336,18 @@ def generate_permuted_matrix(
             rng=rng,
         )
 
-    # Heuristic uniqueness check (only meaningful in clustered modes)
+    # Cluster uniqueness diagnostic
     if cluster is not None and reps >= 2:
         import warnings
 
-        # Build a compact representation to check uniqueness cheaply:
-        # - if stratified clustering: use first index of each (stratum, cluster) pair
-        # - else: use first index of each cluster
         if strata is not None:
             pairs = np.stack((strata, cluster), axis=1)
             _, first_idx = np.unique(pairs, axis=0, return_index=True)
         else:
             _, first_idx = np.unique(cluster, return_index=True)
 
-        rows = perms[:, first_idx]  # (reps, G') compact representation
+        rows = perms[:, first_idx]
 
-        # Optional downsampling to cap cost for huge reps
         if reps > 5000:
             step = max(reps // 5000, 1)
             rows = rows[::step]
@@ -360,7 +365,7 @@ def generate_permuted_matrix(
 
 
 # ------------------------------------------------------------------ #
-# Streaming generator for memory-bounded permutation blocks -------- #
+# Streaming generator of permutation blocks
 # ------------------------------------------------------------------ #
 
 
@@ -374,37 +379,11 @@ def iter_permuted_matrix(
     chunk_rows: Optional[int] = None,
 ) -> Iterator[np.ndarray]:
     """
-    Yield successive `(m, n)` blocks of permuted copies of `a` (same dtype as `a`).
+    Yield successive blocks of permuted copies of `a`.
 
-    Parameters
-    ----------
-    a : ndarray
-        Base assignment vector (length n). DTYPE IS PRESERVED in outputs.
-    reps : int
-        Total number of permutations desired.
-    cluster, strata : ndarray, optional
-        Constraints for clustered/stratified permutation (same semantics as
-        `generate_permuted_matrix`).
-    rng : np.random.Generator, optional
-        Random number generator. Reusing a *single* generator across calls ensures
-        determinism regardless of chunk size.
-    chunk_rows : int, optional
-        Maximum number of permutation rows to produce per yielded block.
-        If None or >= reps, a single block of shape (reps, n) is yielded.
-
-    Yields
-    ------
-    block : (m, n) ndarray
-        A block of permuted assignments, where `m = min(chunk_rows, reps_remaining)`.
-
-    Notes
-    -----
-    - This function intentionally does **not** run the clustered uniqueness diagnostic
-      (that heuristic lives in the eager `generate_permuted_matrix`). The iterator
-      is a low-level primitive used by run.py to bound peak RAM.
-    - Determinism: as long as the same RNG instance is passed, the sequence of
-      permutations is identical to what you would get by constructing the full
-      matrix with `generate_permuted_matrix` and iterating its rows in order.
+    Produces blocks of at most `chunk_rows` rows until `reps` total rows
+    have been generated. Preserves dtype and uses the same RNG instance for
+    deterministic sequences regardless of chunking.
     """
     if rng is None:
         rng = np.random.default_rng()
@@ -412,7 +391,6 @@ def iter_permuted_matrix(
     if reps < 0:
         raise ValueError("iter_permuted_matrix: `reps` must be non-negative.")
     if chunk_rows is None or chunk_rows >= reps:
-        # Single-shot: yield one full block
         yield generate_permuted_matrix(a, reps, cluster=cluster, strata=strata, rng=rng)
         return
 
