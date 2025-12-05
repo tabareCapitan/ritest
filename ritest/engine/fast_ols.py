@@ -1,67 +1,37 @@
 """
-ritest.engine.fast_ols
-======================
+Fast OLS/WLS estimator with optional robust covariance.
 
-A minimal yet *fast* OLS / WLS estimator implemented in pure NumPy.
-Robust variance–covariance matrices are computed once; permutation
-loops then reuse a cached *c-vector* so that each permuted statistic
-is just a dot-product.
+Implements a minimal OLS/WLS core aimed at permutation-intensive workflows.
+The estimator caches (XᵀX)⁻¹ once and derives a c-vector so that permutation
+statistics reduce to dot-products. Robust covariance (HC1 or CRV1) is computed
+at most once per fit. Permutation evaluation uses a pre-weighted c-vector
+and avoids rebuilding design matrices.
 
-Why this exists
----------------
-`statsmodels` is feature-rich but far too slow to refit thousands of
-times during randomisation inference.  FastOLS:
-
-1.  Caches  ``(XᵀX)⁻¹``  once.
-2.  Derives  ``c_vector``  so that  **β̂ = cᵀ y**  (OLS) or  **β̂ = cᵀ (y ∘ √w)** (WLS).
-3.  Computes a *robust* sandwich (HC1 or CRV1) exactly once (optional).
-4.  Optionally jit-accelerates the permutation dot-products.
-
-Robust-Inference Policy
------------------------
-*If* ``cluster`` is supplied ⟶ CRV1 (Stata default).
-Otherwise ⟶ HC1 (White).  We never assume homoskedasticity.
-
-Permutation API (weights handled automatically)
------------------------------------------------
-If you construct ``FastOLS`` with weights, all algebra lives in the weighted
-space (``Xw = X ∘ √w`` and ``yw = y ∘ √w``), so **β̂ = cᵀ yw**.  You do **not**
-need to transform permuted outcomes yourself. Call:
-
-    ols = FastOLS(y, X, treat_idx, weights=w, cluster=clu, compute_vcov=False)
-    z   = ols.permuted_stats(Y_perm)
-
-Internally we precompute a permutation vector:
-    ``c_perm_vector = c_vector`` (OLS) or ``c_vector ∘ √w`` (WLS),
-so permutations are always just ``Y_perm @ c_perm_vector``.
-
-Weights policy
---------------
-This estimator requires **strictly positive** analytic weights.
-Zero-weighted rows are *not* supported here; they can render ``XᵀX`` non-SPD
-and cause factorization to fail. In workflows that drop observations via
-weights (e.g., some matching pipelines), prefer to **exclude** those rows
-before fitting, or build a filtered design with only the kept units.
-
-Public Interface
+Public interface
 ----------------
 FastOLS(y, X, treat_idx, *, weights=None, cluster=None, compute_vcov=True)
 
 Attributes
-~~~~~~~~~~
-beta_hat       : float             point estimate of treatment effect
-se             : float             robust SE (NaN if compute_vcov=False)
-vcov           : (k,k) array | None  full robust sandwich (None if compute_vcov=False)
-c_vector       : (n,) array        β = cᵀ y (OLS) or β = cᵀ (y ∘ √w) (WLS)
-c_perm_vector  : (n,) array        c used for permutations (pre-weighted if WLS)
-K              : float             cᵀ T_  where T_ = X[:,t] (OLS) or X[:,t] ∘ √w (WLS)
-t_metric       : (n,) array        the treatment column in the same metric as `c_vector`
+----------
+beta_hat : float
+    Treatment coefficient.
+se : float
+    Robust standard error (NaN if compute_vcov=False).
+vcov : array or None
+    Robust covariance matrix.
+c_vector : ndarray
+    Vector satisfying β̂ = cᵀ y   (or cᵀ yw for weighted LS).
+c_perm_vector : ndarray
+    c-vector in the correct metric for permutation draws.
+K : float
+    cᵀ T_ where T_ is the treatment column in the metric of X (weighted if WLS).
+t_metric : ndarray
+    Treatment regressor in the same metric as c_vector.
 
-Helpers
-~~~~~~~
-fast_permuted_stats(c_vector, Y_perm) → β for each permuted y
-(JIT-parallel if Numba available).  Prefer ``FastOLS.permuted_stats(...)`` which
-selects the right c-vector and handles weights internally.
+Notes
+-----
+- No missing-value handling; upstream validation is required.
+- For permutation tests, use ``permuted_stats(Y_perm)`` on an instance.
 """
 
 from __future__ import annotations
@@ -106,7 +76,10 @@ def _vcov_white(
         try:
             xtx = X.T @ X
             L = np.linalg.cholesky(xtx)
-            xtx_inv = np.linalg.solve(L.T, np.linalg.solve(L, np.eye(k, dtype=np.float64)))
+            xtx_inv = np.linalg.solve(
+                L.T,
+                np.linalg.solve(L, np.eye(k, dtype=np.float64)),
+            )
         except np.linalg.LinAlgError as err:  # pragma: no cover
             raise ValueError(
                 "Cholesky factorization failed in _vcov_white: (X'X) is not SPD. "
@@ -174,7 +147,10 @@ def _vcov_cluster(
         try:
             xtx = X.T @ X
             L = np.linalg.cholesky(xtx)
-            xtx_inv = np.linalg.solve(L.T, np.linalg.solve(L, np.eye(k, dtype=np.float64)))
+            xtx_inv = np.linalg.solve(
+                L.T,
+                np.linalg.solve(L, np.eye(k, dtype=np.float64)),
+            )
         except np.linalg.LinAlgError as err:  # pragma: no cover
             raise ValueError(
                 "Cholesky factorization failed in _vcov_cluster: (X'X) is not SPD. "
@@ -193,7 +169,7 @@ try:
     @njit(parallel=True, fastmath=True)  # pragma: no cover
     def fast_permuted_stats(c_vec: np.ndarray, Y: np.ndarray) -> np.ndarray:
         """
-        Compute  z_r = cᵀ y_perm[r]  for each of R permutations in parallel.
+        Compute z_r = cᵀ y_perm[r] for each of R permutations.
 
         Advanced: normally you should use `FastOLS.permuted_stats(Y_perm)`,
         which selects the correct `c` (pre-weighted if WLS). This low-level
@@ -237,22 +213,23 @@ class FastOLS:
     y : (n,) arraylike
         Outcome vector.
     X : (n,k) arraylike
-        Design matrix.  (Include intercept yourself if needed.)
+        Design matrix. (Include intercept yourself if needed.)
     treat_idx : int
         Column index of the treatment variable inside ``X``.
     weights : (n,) arraylike, optional
-        Analytic weights (WLS).  If *None* ordinary LS is used.
+        Analytic weights (WLS). If ``None`` ordinary LS is used.
     cluster : arraylike, optional
-        Cluster identifiers for CRV1.  If *None* ⇒ HC1.
+        Cluster identifiers for CRV1. If ``None`` ⇒ HC1.
     compute_vcov : bool, default True
         If False, skip residual and robust covariance calculations.
-        Useful for *permutation fits*, where only β̂, c-vectors, K and t_metric are needed.
+        Useful for permutation fits, where only β̂, c-vectors, K and t_metric
+        are needed.
 
     Notes
     -----
-    * No missing-value handling is done here – validation lives upstream.
-    * When `compute_vcov=False`, attributes `vcov=None` and `se=np.nan`.
-    * For permutation tests, call ``permuted_stats(Y_perm)`` on the instance.
+    - No missing-value handling is done here; validation lives upstream.
+    - When ``compute_vcov=False``, attributes ``vcov=None`` and ``se=np.nan``.
+    - For permutation tests, call ``permuted_stats(Y_perm)`` on the instance.
     """
 
     # ------------------------------------------------------------------
@@ -301,7 +278,10 @@ class FastOLS:
         try:
             xtx = Xw.T @ Xw
             L = np.linalg.cholesky(xtx)
-            xtx_inv = np.linalg.solve(L.T, np.linalg.solve(L, np.eye(k, dtype=np.float64)))
+            xtx_inv = np.linalg.solve(
+                L.T,
+                np.linalg.solve(L, np.eye(k, dtype=np.float64)),
+            )
         except np.linalg.LinAlgError as err:
             raise ValueError(
                 "Cholesky factorization failed: (X'X) is not SPD. "
@@ -360,7 +340,7 @@ class FastOLS:
         """
         Return z_r = cᵀ y_perm[r] for each row of Y.
 
-        Uses the precomputed `c_perm_vector` so callers never need to think
+        Uses the precomputed ``c_perm_vector`` so callers never need to think
         about weights; this is the canonical way to compute permutation stats.
 
         Accepts either a 2-D array of shape (R, n) or a 1-D vector (n,),
