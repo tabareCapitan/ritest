@@ -1,3 +1,17 @@
+"""Core randomization-inference engine for ritest.
+
+This module contains the internal `ritest()` implementation used by the
+public API. It coordinates:
+
+- configuration (DEFAULTS and user overrides),
+- validation and preprocessing,
+- permutation generation (full matrix or streamed),
+- model evaluation (FastOLS or user-supplied stat_fn),
+- p-value and p-value CI calculation,
+- optional coefficient CI bounds/bands,
+- packaging results into `RitestResult`.
+"""
+
 from __future__ import annotations
 
 import os
@@ -30,6 +44,7 @@ __all__ = ["ritest"]
 
 
 def _coerce_n_jobs(val: int | None) -> int:
+    """Normalise `n_jobs` to a sensible positive integer."""
     if val is None:
         return 1
     if val == -1:
@@ -42,7 +57,7 @@ def _coerce_n_jobs(val: int | None) -> int:
 
 
 def _coerce_ci_method(x: str | _PValCIMethod | None, fallback: _PValCIMethod) -> _PValCIMethod:
-    """Normalize user input to core's accepted labels: 'cp' or 'normal'."""
+    """Normalise user input to core labels `'cp'` or `'normal'`."""
     if x is None:
         return fallback
     s = str(x).strip().lower()
@@ -55,14 +70,15 @@ def _coerce_ci_method(x: str | _PValCIMethod | None, fallback: _PValCIMethod) ->
 
 def _bytes_per_row(n_obs: int, label_itemsize: int) -> int:
     """
-    Estimated bytes required per *row* of the permutation block.
+    Estimate bytes required per *row* of the permutation block.
 
-    - If the FastOLS kernels are Numba-JITed (`FAST_OLS_NUMBA_OK`), the
-      permutation labels are consumed as-is (int8), so 1 byte/entry is fine.
-    - Otherwise, NumPy fallbacks may cast to float64 inside the computation
-      path; use 8 bytes/entry to conservatively bound peak memory.
-
-    We take the *max* to be robust if environments differ.
+    Rules
+    -----
+    - If FastOLS kernels are Numba-JITed (`FAST_OLS_NUMBA_OK`), labels are
+      consumed as-is (int8) ⇒ 1 byte per entry is enough.
+    - Otherwise, NumPy fallbacks may cast to float64 internally; assume
+      8 bytes per entry for a safe upper bound.
+    - Always respect the input label itemsize so we never underestimate.
     """
     per_entry = 1 if FAST_OLS_NUMBA_OK else 8
     # In case label_itemsize is larger than 1 (user-provided permutations),
@@ -100,10 +116,11 @@ def ritest(  # noqa: C901
     permutations: np.ndarray | None = None,
 ) -> RitestResult:
     """
-    Run a randomisation test.
+    Core randomisation test.
 
     Exactly one of (`formula`, `stat`) or (`stat_fn`) must be provided.
-    Public controls override DEFAULTS when specified.
+    Any explicit control provided here overrides the corresponding value
+    in `config.DEFAULTS`.
     """
     t0 = time.perf_counter()
 

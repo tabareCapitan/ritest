@@ -1,3 +1,14 @@
+"""Public interface for the ritest package.
+
+This module exposes a stable, user-facing API:
+
+- `ritest`: high-level entrypoint with friendly defaults and synonyms.
+- `RitestResult`: container for outputs and basic presentation helpers.
+- Config helpers: `ritest_set`, `ritest_get`, `ritest_reset`, `ritest_config`.
+
+Internally, calls are routed to `run.ritest` via `_translate_kwargs`.
+"""
+
 from __future__ import annotations
 
 import inspect
@@ -50,7 +61,10 @@ def _translate_kwargs(core, **kw: Any) -> Dict[str, Any]:
 
     Pass 1: keep any kw the core already accepts (so 'df' is preserved).
     Pass 2: translate remaining logical keys via synonyms.
-    Pass 3: special handling for ci_mode -> ('ci_mode' string) or ('coef_ci'/'ci' bool).
+    Pass 3: handle `ci_mode` when the core only exposes a boolean CI flag.
+
+    The goal is to be forgiving at the public layer while keeping the
+    internal core signature stable.
     """
     params = set(inspect.signature(core).parameters.keys())
     out: Dict[str, Any] = {}
@@ -113,7 +127,13 @@ def ritest(
     ci_range: Optional[Tuple[float, float]] = None,
     ci_step: Optional[float] = None,
 ) -> RitestResult:
-    """Public entrypoint. Provide exactly one of `stat` (linear) or `stat_fn` (generic)."""
+    """
+    Public entrypoint for randomization inference.
+
+    Provide exactly one of `stat` (linear model path) or `stat_fn` (generic
+    statistic path). All other arguments are forwarded to the internal core
+    implementation via `_translate_kwargs`.
+    """
     if (stat is None) == (stat_fn is None):
         raise ValueError("Provide exactly one of 'stat' (linear) or 'stat_fn' (generic).")
 
