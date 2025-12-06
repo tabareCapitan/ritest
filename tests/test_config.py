@@ -53,10 +53,7 @@ def test_defaults_shape_and_types():
     assert isinstance(d["seed"], int)
     assert isinstance(d["alpha"], float) and 0 < d["alpha"] < 1
     assert d["ci_method"] in {"cp", "normal"}
-    assert d["ci_mode"] in {"bounds", "grid", "none"} or d["ci_mode"] in {
-        "bounds",
-        "grid",
-    }  # allow either default set
+    assert d["ci_mode"] in {"bounds", "grid", "none"}
     assert isinstance(d["coef_ci_generic"], bool)
     assert isinstance(d["ci_range"], float) and d["ci_range"] > 0
     assert isinstance(d["ci_step"], float) and d["ci_step"] > 0
@@ -263,6 +260,8 @@ def test_unknown_key_rejected_in_set_and_reset():
 
 def test_reset_all_restores_import_time_defaults_and_identity():
     d_id = id(DEFAULTS)
+    baseline = ritest_get()
+
     # Change many settings
     ritest_set(
         {
@@ -285,81 +284,71 @@ def test_reset_all_restores_import_time_defaults_and_identity():
     ritest_reset()
     assert id(DEFAULTS) == d_id
 
-    # Assert we are back to import-time defaults
+    # Assert we are back to import-time defaults (whatever they are)
     d = ritest_get()
-    assert d["alpha"] == 0.05
-    assert d["reps"] == 100
-    assert d["ci_method"] == "cp"
-    # Some repos default "ci_mode" to "bounds"; accept either if project defaults change
-    assert d["ci_mode"] in {"bounds", "grid", "none"} or d["ci_mode"] in {"bounds", "grid"}
-    assert d["coef_ci_generic"] is False
-    assert d["ci_range"] == 3.0
-    assert d["ci_step"] == 0.005
-    assert d["ci_tol"] == 1e-4
-    assert d["n_jobs"] == -1
-    assert d["seed"] == 23
-    # NEW: chunking defaults
-    assert d["perm_chunk_bytes"] == 256 * 1024 * 1024
-    assert d["perm_chunk_min_rows"] == 64
+    assert d == baseline
 
 
 def test_reset_subset_only_affects_selected_keys():
+    baseline = ritest_get()
+
     # Change three keys
     ritest_set({"alpha": 0.1, "reps": 321, "n_jobs": 1})
     # Reset a subset
     ritest_reset(keys=["alpha", "n_jobs"])
 
     d = ritest_get()
-    # Reset keys restored
-    assert d["alpha"] == 0.05
-    assert d["n_jobs"] == -1
+    # Reset keys restored to baseline
+    assert d["alpha"] == baseline["alpha"]
+    assert d["n_jobs"] == baseline["n_jobs"]
     # Unlisted key remains overridden
     assert d["reps"] == 321
 
 
 def test_context_manager_temporary_overrides_and_restore():
     base = ritest_get()
-    assert base["alpha"] == 0.05
-    assert base["reps"] == 100
 
-    with ritest_config({"alpha": 0.1, "reps": 999}):
+    with ritest_config({"alpha": 0.1, "reps": base["reps"] + 1}):
         assert ritest_get("alpha") == 0.1
-        assert ritest_get("reps") == 999
+        assert ritest_get("reps") == base["reps"] + 1
 
     # Restored to prior state (import-time defaults here due to autouse fixture)
     after = ritest_get()
-    assert after["alpha"] == 0.05
-    assert after["reps"] == 100
+    assert after == base
 
 
 def test_context_manager_restores_on_exception():
+    base = ritest_get()
+
     with pytest.raises(RuntimeError):
-        with ritest_config({"alpha": 0.2}):
-            assert ritest_get("alpha") == 0.2
+        with ritest_config({"alpha": base["alpha"] + 0.01}):
+            assert ritest_get("alpha") == base["alpha"] + 0.01
             raise RuntimeError("boom")
 
     # Restored
-    assert ritest_get("alpha") == 0.05
+    assert ritest_get() == base
 
 
 def test_context_manager_nesting_behavior():
-    assert ritest_get("alpha") == 0.05
-    assert ritest_get("reps") == 100
+    base = ritest_get()
+    assert ritest_get() == base
 
-    with ritest_config({"alpha": 0.2}):
+    with ritest_config({"alpha": base["alpha"] + 0.1}):
         # Outer override applied
-        assert ritest_get("alpha") == 0.2
-        assert ritest_get("reps") == 100
+        outer = ritest_get()
+        assert outer["alpha"] == base["alpha"] + 0.1
+        assert outer["reps"] == base["reps"]
 
-        with ritest_config({"reps": 10}):
+        with ritest_config({"reps": base["reps"] + 10}):
             # Inner override augments outer
-            assert ritest_get("alpha") == 0.2
-            assert ritest_get("reps") == 10
+            inner = ritest_get()
+            assert inner["alpha"] == base["alpha"] + 0.1
+            assert inner["reps"] == base["reps"] + 10
 
         # After inner, outer still in effect
-        assert ritest_get("alpha") == 0.2
-        assert ritest_get("reps") == 100
+        after_inner = ritest_get()
+        assert after_inner["alpha"] == base["alpha"] + 0.1
+        assert after_inner["reps"] == base["reps"]
 
     # After outer, fully restored
-    assert ritest_get("alpha") == 0.05
-    assert ritest_get("reps") == 100
+    assert ritest_get() == base

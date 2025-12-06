@@ -12,7 +12,7 @@ Internally, calls are routed to `run.ritest` via `_translate_kwargs`.
 from __future__ import annotations
 
 import inspect
-from typing import Any, Callable, Dict, Literal, Optional, Tuple
+from typing import Any, Callable, Dict, Literal, Optional
 
 from .config import ritest_config, ritest_get, ritest_reset, ritest_set
 from .results import RitestResult
@@ -85,6 +85,7 @@ def _translate_kwargs(core, **kw: Any) -> Dict[str, Any]:
                 out[actual] = kw[logical]
                 break
 
+    # TODO: remove this block once all cores accept ci_mode directly
     # Special: ci_mode fallback. NEVER pass a string to a boolean slot.
     if "ci_mode" in kw:
         want = kw["ci_mode"]
@@ -107,15 +108,15 @@ def ritest(
     stat: Optional[str] = None,
     # generic path
     stat_fn: Optional[Callable[[Any], float]] = None,
-    # test controls
+    # test controls (None ⇒ use config.DEFAULTS)
     alternative: Alt = "two-sided",
-    reps: int = 999,
-    alpha: float = 0.05,
-    ci_method: CiMethod = "clopper-pearson",
-    ci_mode: CiMode = "none",  # "none" | "bounds" | "grid"
-    coef_ci_generic: bool = False,  # only relevant for stat_fn + grid
+    reps: Optional[int] = None,
+    alpha: Optional[float] = None,
+    ci_method: Optional[CiMethod] = None,
+    ci_mode: Optional[CiMode] = None,
+    coef_ci_generic: Optional[bool] = None,
     # infra
-    n_jobs: int = 1,
+    n_jobs: Optional[int] = None,
     seed: Optional[int] = None,
     # design
     weights: Optional[str] = None,
@@ -123,8 +124,8 @@ def ritest(
     cluster: Optional[str] = None,
     # optional prebuilt perms
     permutations=None,
-    # optional band grid hints
-    ci_range: Optional[Tuple[float, float]] = None,
+    # optional band grid hints (match core: scalar half-range in SE units)
+    ci_range: Optional[float] = None,
     ci_step: Optional[float] = None,
 ) -> RitestResult:
     """

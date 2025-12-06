@@ -1,20 +1,19 @@
-"""Global configuration for ritest.
+"""Configuration handling for ritest.
 
-Defines a shared DEFAULTS dict and a small public API for inspecting and
-temporarily overriding configuration in a safe, validated way.
+Defines the DEFAULTS dict that stores all global configuration values,
+and the public interface for safely reading/updating them.
 
-Public API
-----------
-DEFAULTS : dict
-    Live dictionary with the current configuration (do not mutate directly).
-ritest_set(overrides)
-    Validate and update selected keys in-place.
-ritest_get(key=None)
-    Read a single value or a shallow copy of all configuration.
-ritest_reset(keys=None)
-    Restore all or selected keys to import-time defaults.
-ritest_config(overrides)
-    Context manager for temporary overrides that automatically revert.
+Public API:
+- DEFAULTS                : live dict with current global config (do not mutate directly)
+- ritest_set(overrides)   : validate and update selected keys (in-place)
+- ritest_get(key=None)    : read a single value or a (shallow) copy of all config
+- ritest_reset(keys=None) : restore all or selected keys to import-time defaults
+- ritest_config(overrides): context manager for temporary overrides (auto-reset)
+
+Notes:
+- DEFAULTS is a live dictionary used internally throughout the package.
+- Prefer ritest_set / ritest_reset / ritest_config over mutating DEFAULTS directly.
+- Mutations are applied in-place (identity of DEFAULTS is preserved).
 """
 
 from __future__ import annotations
@@ -36,44 +35,44 @@ __all__ = [
 # ---------------------------------------------------------------------
 
 DEFAULTS: Dict[str, Any] = {
-    # Main permutation controls
-    "reps": 100,  # Number of permutations
-    "seed": 23,  # Random seed for permutation draws
-    "alpha": 0.05,  # Significance level for p-values and CIs
-    # CI for permutation p-value
+    # --- Main permutation settings ---
+    "reps": 1000,  # Number of permutations
+    "seed": 23,  # Random seed (default: for MJ fans)
+    "alpha": 0.05,  # Significance level for p-value and CI
+    # --- CI for permutation p-value ---
     "ci_method": "cp",  # 'cp' = Clopper–Pearson, 'normal' = Wald
-    # Coefficient-CI mode
-    # 'none'   : do not compute a coefficient CI
+    # --- Coefficient-CI controls ---
+    # 'none'   : do not compute coefficient CI (neither bounds nor grid)
     # 'bounds' : compute only the 2-point coefficient CI
-    # 'grid'   : compute the full (beta, p(beta)) band (and bounds)
+    # 'grid'   : compute the full (β, p(β)) band (and bounds)
     "ci_mode": "bounds",
-    # Controls for generic statistic-based CIs when using stat_fn.
-    # - If True  and ci_mode in {'bounds','grid'}: compute generic coefficient CI
-    #   (grid is allowed but may be slow; a runtime warning may be shown).
+    # Applies ONLY when using a generic stat function (`stat_fn`).
+    # - If True  and ci_mode in {'bounds','grid'}: compute generic coef CI
+    #   (grid allowed but potentially slow; a runtime warning may be shown).
     # - If False and using stat_fn: skip coefficient CI even if ci_mode != 'none'.
-    # Ignored for fast linear models, where CIs are always available unless
-    # ci_mode == 'none'.
+    # Ignored for fast-linear (formula) models, where fast CIs are always available
+    # unless ci_mode == 'none'.
     "coef_ci_generic": False,
-    # Search/grid sizing for the coefficient CI (interpreted in SE units)
-    "ci_range": 3.0,  # Half-range of the search grid in SE units
-    "ci_step": 0.005,  # Grid step in SE units (used when ci_mode == 'grid')
-    "ci_tol": 1e-4,  # Bisection tolerance as a fraction of one SE
-    # Parallelism
+    # Search/grid sizing for coefficient CI (interpreted in SE units)
+    "ci_range": 3.0,  # search half-range in SE units
+    "ci_step": 0.005,  # grid step in SE units (used when ci_mode == 'grid')
+    "ci_tol": 1e-4,  # bisection tolerance (as *SE* fractions)
+    # --- Parallelism ---
     "n_jobs": -1,  # -1 = use all available CPU cores
-    # Memory / chunking (used by run.py to bound memory)
-    # Soft budget for the in-RAM permutation block. If the full
-    # (reps × n × itemsize) permutation matrix would exceed this budget,
-    # permutations are streamed in chunks using iter_permuted_matrix(...).
-    # Default: 256 MiB, conservative on typical laptops and configurable.
+    # --- Memory / chunking (internal; used by run.py to bound memory) ---
+    # Soft budget for the in-RAM permutation block. If the full (reps × n × itemsize)
+    # permutation matrix would exceed this budget, run.py will stream permutations
+    # in chunks using engine.shuffle.iter_permuted_matrix(...).
+    #
+    # Default: 256 MiB – conservative on 8–16 GB laptops, and configurable.
     "perm_chunk_bytes": 256 * 1024 * 1024,
-    # Minimum number of permutation rows per chunk to avoid many tiny blocks
-    # when n is large. Takes effect only when chunking is enabled by the
-    # memory budget above.
+    # Minimum number of permutation rows per chunk to avoid tiny blocks when n is huge.
+    # Has effect only when chunking is enabled by the budget above.
     "perm_chunk_min_rows": 64,
 }
 
-# Baseline snapshot used to support full or partial resets.
-# Deep copy keeps this robust if nested structures are added later.
+# Keep a baseline snapshot to enable full resets.
+# Use a deepcopy for future-proofing if nested structures are added later.
 _BASE_DEFAULTS: Dict[str, Any] = deepcopy(DEFAULTS)
 
 _ALLOWED_CI_METHODS = {"cp", "normal"}
@@ -81,13 +80,7 @@ _ALLOWED_CI_MODES = {"none", "bounds", "grid"}
 
 
 def _validate_pair(key: str, val: Any) -> None:
-    """Validate a (key, value) pair for the global configuration.
-
-    Raises
-    ------
-    ValueError
-        If the key is unknown or the value is not acceptable for that key.
-    """
+    """Raise ValueError if (key, val) is invalid."""
     if key not in DEFAULTS:
         raise ValueError(f"Invalid config key: '{key}'")
 
@@ -139,22 +132,23 @@ def _validate_pair(key: str, val: Any) -> None:
 
 
 def ritest_set(overrides: Mapping[str, Any]) -> None:
-    """Update the global configuration in place.
+    """
+    Update the global configuration in-place (validated).
 
     Parameters
     ----------
     overrides : Mapping[str, Any]
-        Mapping from config keys to new values. All keys must exist in DEFAULTS.
+        Dict-like with keys in DEFAULTS. Unknown keys are rejected.
 
     Raises
     ------
     ValueError
-        If overrides is not a mapping, or contains invalid keys or values.
+        If unknown keys or invalid values are passed.
 
     Notes
     -----
-    This mutates global state. For temporary changes that automatically revert,
-    prefer using ``ritest_config(...)``.
+    - This mutates global state. Prefer using `ritest_config(...)` when you want
+      temporary overrides that automatically revert (e.g., per-test or per-run).
     """
     if not isinstance(overrides, Mapping):
         raise ValueError("overrides must be a mapping of {key: value}")
@@ -168,13 +162,14 @@ def ritest_set(overrides: Mapping[str, Any]) -> None:
 
 
 def ritest_get(key: Optional[str] = None) -> Any:
-    """Read configuration values.
+    """
+    Read configuration values safely.
 
     Parameters
     ----------
     key : str or None, optional
-        If None (default), return a shallow copy of the entire config.
-        Otherwise, return the value for the requested key.
+        If None (default), returns a shallow copy of the entire config.
+        If a key is provided, returns the current value for that key.
 
     Returns
     -------
@@ -184,10 +179,10 @@ def ritest_get(key: Optional[str] = None) -> Any:
     Raises
     ------
     KeyError
-        If a non-existent key is requested.
+        If `key` is provided and is not a valid config key.
     """
     if key is None:
-        # Shallow copy is sufficient because configuration values are scalars.
+        # Shallow copy is fine because current values are scalars.
         return dict(DEFAULTS)
     if key not in DEFAULTS:
         raise KeyError(f"Unknown config key: {key!r}")
@@ -195,22 +190,18 @@ def ritest_get(key: Optional[str] = None) -> Any:
 
 
 def ritest_reset(keys: Optional[Iterable[str]] = None) -> None:
-    """Reset configuration to import-time defaults.
+    """
+    Reset configuration to the import-time defaults.
 
     Parameters
     ----------
     keys : iterable of str or None, optional
-        If None (default), reset all keys to baseline values.
-        If an iterable is given, reset only those keys (all must exist).
-
-    Raises
-    ------
-    ValueError
-        If any requested key does not exist.
+        - None (default): reset all keys to baseline values.
+        - Iterable: reset only those keys (unknown keys raise ValueError).
 
     Notes
     -----
-    Resets are applied in place; the identity of DEFAULTS is preserved.
+    Resets are applied in-place (identity of DEFAULTS is preserved).
     """
     if keys is None:
         DEFAULTS.clear()
@@ -230,23 +221,21 @@ def ritest_reset(keys: Optional[Iterable[str]] = None) -> None:
 
 @contextmanager
 def ritest_config(overrides: Mapping[str, Any]):
-    """Context manager for temporary configuration overrides.
+    """
+    Context manager for temporary configuration overrides.
 
-    Parameters
-    ----------
-    overrides : Mapping[str, Any]
-        Mapping from config keys to new values. All keys must be valid and
-        values must pass validation.
-
-    Yields
-    ------
-    None
-        Execution continues inside the managed block with overrides applied.
+    Example
+    -------
+    >>> with ritest_config({"alpha": 0.1, "reps": 2000}):
+    ...     # run code with temporary config
+    ...     pass
+    >>> # here config is restored to previous values
 
     Notes
     -----
-    The previous configuration is restored on exit, even if an exception is
-    raised. The DEFAULTS object itself is preserved (only its contents change).
+    - Validates and applies overrides on entry.
+    - Always restores the prior configuration on exit, even if an exception is raised.
+    - The restore preserves the identity of DEFAULTS.
     """
     prev = dict(DEFAULTS)  # shallow snapshot of scalar values
     try:
