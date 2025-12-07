@@ -83,30 +83,6 @@ def _get_alpha(settings: Dict[str, object], fallback: float = 0.05) -> float:
     return float(fallback)
 
 
-def _get_runtime(settings: Dict[str, object], runtime_attr: Optional[float]) -> Optional[float]:
-    """
-    Retrieve a best-effort runtime (seconds) from settings and/or attribute.
-
-    Prefers `settings['runtime_sec']` when present; otherwise uses the
-    `runtime` attribute if provided. Any non-numeric or unparsable value
-    yields `None`.
-    """
-    val: Optional[object] = settings.get("runtime_sec", None)
-    if val is None:
-        val = runtime_attr
-        if val is None:
-            return None
-
-    if isinstance(val, (int, float, np.floating)):
-        return float(val)
-    if isinstance(val, str):
-        try:
-            return float(val)
-        except ValueError:
-            return None
-    return None
-
-
 # --------- main result container --------- #
 @dataclass(slots=True)
 class RitestResult:
@@ -226,9 +202,6 @@ class RitestResult:
         n_jobs = self.settings.get("n_jobs", "unknown")
         seed = self.settings.get("seed", "unknown")
 
-        rt = _get_runtime(self.settings, self.runtime)
-        rt_line = f"{_fmt_float(rt, 3)} s" if rt is not None else "n/a"
-
         # Section: headline & coefficient
         lines: list[str] = []
         lines.append("Randomization Inference Result")
@@ -278,7 +251,6 @@ class RitestResult:
         lines.append(f"ci_method:              {ci_method}")
         lines.append(f"ci_mode:                {ci_mode}")
         lines.append(f"n_jobs:                 {n_jobs}")
-        lines.append(f"runtime:                {rt_line}")
 
         # Interpretation (short)
         lines.append("")

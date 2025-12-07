@@ -8,7 +8,7 @@ The *only* job of this module is to:
 
 1. Check that the user supplied **consistent, supported** arguments.
 2. Refuse anything unexpected or ambiguous with clear `ValueError`s.
-3. Convert pandas objects → NumPy arrays of the *exact* dtypes required
+3. Convert pandas objects to NumPy arrays of the *exact* dtypes required
    by the computation engines (FastOLS, shuffle.py, etc.).
 
 No mutation of the original DataFrame is done; recoding (e.g. factorising

@@ -15,7 +15,6 @@ public API. It coordinates:
 from __future__ import annotations
 
 import os
-import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, Dict, Optional, Tuple, cast
@@ -122,7 +121,6 @@ def ritest(  # noqa: C901
     Any explicit control provided here overrides the corresponding value
     in `config.DEFAULTS`.
     """
-    t0 = time.perf_counter()
 
     # 0) Controls: pull from DEFAULTS, allow public overrides
     cfg = DEFAULTS
@@ -488,7 +486,6 @@ def ritest(  # noqa: C901
         "alternative": alternative,
         "n_jobs": n_jobs,
         "coef_ci_generic": coef_ci_generic,
-        "runtime_sec": time.perf_counter() - t0,
     }
 
     res = RitestResult(

@@ -24,7 +24,6 @@ def make_res(
     coef_ci_bounds: tuple[float, float] | None = (0.01, 0.25),
     with_band: bool = True,
     band_valid_linear: bool = True,
-    runtime: float | None = None,
 ):
     settings: dict[str, object] = {
         "alpha": 0.05,
@@ -32,7 +31,6 @@ def make_res(
         "ci_method": "clopper-pearson",
         "ci_mode": "grid" if with_band else "none",
         "n_jobs": 1,
-        "runtime_sec": 0.123 if runtime is None else runtime,
     }
     if with_band:
         grid = np.linspace(-0.5, 0.5, 11)
@@ -56,7 +54,6 @@ def make_res(
         band_valid_linear=band_valid_linear,
         perm_stats=None,
         settings=settings,
-        runtime=runtime,
     )
 
 
@@ -82,7 +79,6 @@ def test_summary_includes_sections_and_values():
     assert "ci_method:              clopper-pearson" in s
     assert "ci_mode:                grid" in s
     assert "n_jobs:                 1" in s
-    assert "runtime:" in s
 
 
 def test_summary_handles_missing_optionals_cleanly():
