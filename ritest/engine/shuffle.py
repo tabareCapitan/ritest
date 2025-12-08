@@ -227,6 +227,17 @@ def permute_assignment(
     """
     Return a permuted copy of `a` according to the requested scheme.
 
+    Parameters
+    ----------
+    a : ndarray
+        Base assignment vector to permute.
+    cluster : ndarray, optional
+        Cluster labels; if provided, permutation happens at the cluster level.
+    strata : ndarray, optional
+        Strata labels; if provided, permutation respects within-stratum counts.
+    rng : Generator, optional
+        Random number generator used for deterministic permutations.
+
     Modes
     -----
     Plain:
@@ -311,8 +322,10 @@ def generate_permuted_matrix(
         Base assignment vector.
     reps : int
         Number of permutations.
-    cluster, strata : ndarray, optional
-        Mode selectors; see `permute_assignment`.
+    cluster : ndarray, optional
+        Cluster labels; if provided, permutation happens at the cluster level.
+    strata : ndarray, optional
+        Strata labels; if provided, permutation respects within-stratum counts.
     rng : Generator, optional
         RNG reused across draws for reproducibility.
 
@@ -384,6 +397,26 @@ def iter_permuted_matrix(
     Produces blocks of at most `chunk_rows` rows until `reps` total rows
     have been generated. Preserves dtype and uses the same RNG instance for
     deterministic sequences regardless of chunking.
+
+    Parameters
+    ----------
+    a : ndarray
+        Base assignment vector.
+    reps : int
+        Total number of permutation rows to produce.
+    cluster : ndarray, optional
+        Cluster labels; if provided, permutation happens at the cluster level.
+    strata : ndarray, optional
+        Strata labels; if provided, permutation respects within-stratum counts.
+    rng : Generator, optional
+        Random number generator used for deterministic permutations.
+    chunk_rows : int, optional
+        Maximum number of rows to generate per yielded block.
+
+    Returns
+    -------
+    Iterator of ndarray
+        Consecutive permutation blocks whose concatenation has shape (reps, n).
     """
     if rng is None:
         rng = np.random.default_rng()

@@ -142,6 +142,33 @@ def coef_ci_bounds_fast(
     The permutation p-value curve is computed once. The CI consists of the
     outermost β₀ values where p(β₀) ≥ α. For one-sided tests, the CI is open
     on the far side and uses ±∞ where appropriate.
+
+    Parameters
+    ----------
+    beta_obs : float
+        Observed treatment coefficient.
+    beta_perm : (R,) array
+        Permuted coefficients.
+    K_obs : float
+        Observed cᵀ T_metric value.
+    K_perm : (R,) array
+        Permuted cᵀ T_metric values.
+    se : float
+        Standard error used to size the grid in SE units.
+    alpha : float
+        Threshold for p(β₀); bounds are the extreme β₀ where p >= alpha.
+    ci_range : float
+        Half-width of the grid, in SE units.
+    ci_step : float
+        Spacing of the grid, in SE units.
+    alternative : {"two-sided", "left", "right"}
+        Which tail to use for the p-value definition.
+
+    Returns
+    -------
+    (lo, hi) : tuple of float
+        Finite bounds when available; ±∞ on the open side for one-sided tests;
+        (nan, nan) if no grid points satisfy the threshold.
     """
     if not (0.0 < float(alpha) < 1.0):
         raise ValueError("alpha must be in (0, 1)")
@@ -188,13 +215,31 @@ def coef_ci_bounds_generic(
 
     Parameters
     ----------
+    beta_obs : float
+        Observed treatment coefficient; centers the grid.
     runner : callable
         Function ``runner(beta0)`` returning a permutation p-value.
+    alpha : float
+        Threshold for p(β₀); bounds are the extreme β₀ where p >= alpha.
+    ci_range : float
+        Half-width of the grid, in SE units.
+    ci_step : float
+        Spacing of the grid, in SE units.
+    se : float
+        Standard error used to size the grid in SE units.
+    alternative : {"two-sided", "left", "right"}
+        Which tail to use for the p-value definition.
 
     Notes
     -----
     - Used when the estimator is not linear in the sufficient statistic.
     - Makes no assumptions about structure; cost grows with grid size.
+
+    Returns
+    -------
+    (lo, hi) : tuple of float
+        Finite bounds when available; ±∞ on the open side for one-sided tests;
+        (nan, nan) if no grid points satisfy the threshold.
     """
     if not (se > 0.0 and ci_range > 0.0 and ci_step > 0.0):
         raise ValueError("se, ci_range, and ci_step must be positive")
