@@ -119,9 +119,8 @@ class RitestResult:
     # Full permutation stats (optional, for diagnostics)
     perm_stats: Optional[np.ndarray] = None
 
-    # Settings snapshot and optional runtime
+    # Settings snapshot
     settings: Dict[str, object] = field(default_factory=dict)
-    runtime: Optional[float] = None
 
     # --------------- dunder methods --------------- #
     def __repr__(self) -> str:
