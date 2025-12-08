@@ -21,6 +21,7 @@ dependencies = [
   "pandas",
   "patsy",
   "scipy",
+  "packaging",
 ]
 
 # Trove classifiers: help users discover the package.
