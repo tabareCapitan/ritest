@@ -1,65 +1,61 @@
 [build-system]
-requires = ["setuptools>=69", "wheel"]
+requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "ritest"
 version = "0.1.0"
-description = "Randomization inference (permutation tests & inversion CIs) for Python."
+description = "Randomization inference in Python."
 readme = "README.md"
-requires-python = ">=3.9"
-license = {text = "MIT"}
-authors = [{ name = "tabarecapitan.com" }]
+requires-python = ">=3.10"
+
+license = { file = "LICENSE" }
+
+authors = [
+  { name = "Tabaré Capitán"}
+]
+
+# Core runtime dependencies: required for the package to function.
 dependencies = [
   "numpy",
   "pandas",
   "patsy",
   "scipy",
-  "matplotlib",
-]
-# Optional speed-up for users who want JIT; not required to run.
-[project.optional-dependencies]
-numba = ["numba"]
-dev = [
-  "pytest",
-  "pytest-cov",
-  "statsmodels",
-  "ruff",
-  "black",
-  "mypy",
-  "pre-commit",
 ]
 
+# Trove classifiers: help users discover the package.
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering",
+  "Topic :: Scientific/Engineering :: Mathematics",
+]
+
+[project.optional-dependencies]
+# Extra for coefficient-profile plotting (RitestResult.plot)
+plot = [
+  "matplotlib",
+]
+
+# Extra for Numba-accelerated permutation / OLS paths.
+numba = [
+  "numba",
+]
+
+[project.urls]
+# PENDING PENDING PENDING PENDING PENDING PENDING PENDING PENDING PENDING PENDING PENDING
+homepage = "https://tabarecapitan.com/projects/ritest"
+repository = "https://github.com/YOUR_USERNAME/ritest"
+issues = "https://github.com/tabareCapitan/ritest/issues"
+
+[tool.setuptools]
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["ritest*"]
-
-[tool.ruff]
-line-length = 100
-target-version = "py311"
-exclude = ["ritest/legacy-slow"]
-
-[tool.ruff.lint]
-extend-select = ["I"]      # import sorting
-extend-ignore = ["E741"]   # allow 'l', 'O', etc., if you really need them
-
-
-[tool.black]
-line-length = 100
-target-version = ["py311"]
-extend-exclude = "ritest/legacy-slow"
-
-[tool.pytest.ini_options]
-addopts = "-q --maxfail=1 --disable-warnings"
-testpaths = ["tests"]
-norecursedirs = ["ritest/legacy-slow"]
-
-[tool.coverage.run]
-branch = true
-source = ["ritest"]
-omit = ["ritest/legacy-slow/*"]
-
-[tool.mypy]
-python_version = "3.11"
-ignore_missing_imports = true
-strict = false
+exclude = ["tests*", "temp_tests*"]
