@@ -33,9 +33,9 @@ jobs:
         run: |
           python -m pip install ".[numba,plot]"
 
-      - name: Run tests
+      - name: Install package with extras
         run: |
-          python -m pytest -q
+          python -m pip install ".[numba,plot]" pytest
 
       - name: Run tests
         run: |
