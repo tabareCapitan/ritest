@@ -3,6 +3,13 @@ __pycache__/*
 *.pyo
 *.egg-info/
 .env/
+.venv-*/
+venv/
 .vscode/
 .DS_Store
 temp_tests/*
+dist/
+build/
+.ruff_cache/
+.pytest_cache/
+.coverage
