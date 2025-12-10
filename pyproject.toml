@@ -49,10 +49,15 @@ numba = [
   "numba",
 ]
 
+test = [
+  "pytest",
+  "statsmodels",
+]
+
+
 [project.urls]
-# PENDING PENDING PENDING PENDING PENDING PENDING PENDING PENDING PENDING PENDING PENDING
 homepage = "https://tabarecapitan.com/projects/ritest"
-repository = "https://github.com/YOUR_USERNAME/ritest"
+repository = "https://github.com/tabarecapitan/ritest"
 issues = "https://github.com/tabareCapitan/ritest/issues"
 
 [tool.setuptools]
