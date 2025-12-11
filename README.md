@@ -98,6 +98,11 @@ Tabaré Capitán (2025). ritest: Randomization inference in Python.
 https://github.com/tabareCapitan/ritest
 ```
 
+## Disclaimer
+
+Use this software at your own risk. I make no guarantees of correctness or fitness for any purpose. I use it in my own work, but you should review the code to ensure it meets your needs. If you find an issue, please report it.
+
+
 ## Contributing and issues
 
 Bug reports and feature requests can be filed at:
