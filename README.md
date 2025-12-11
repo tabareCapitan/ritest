@@ -5,6 +5,7 @@
 [![CI](https://github.com/tabareCapitan/ritest/actions/workflows/ci.yml/badge.svg)](https://github.com/tabareCapitan/ritest/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+
 ## Overview
 
 `ritest` provides randomization inference in Python. It supports simple treatment assignment as well as more complex designs (stratified, cluster,  cluster-within-strata). The package includes a fast OLS-based path for linear models and a generic path for any statistic.
