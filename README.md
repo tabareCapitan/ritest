@@ -9,14 +9,14 @@
 From PyPI:
 
 ```bash
-pip install ritest
+pip install ritest-python
 ```
 
 Optional extras:
 
 ```bash
-pip install ritest[plot]      # plotting support
-pip install ritest[numba]     # Numba acceleration
+pip install ritest-python[plot]      # plotting support
+pip install ritest-python[numba]     # Numba acceleration
 ```
 
 ## Quickstart
