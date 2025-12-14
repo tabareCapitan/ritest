@@ -127,7 +127,9 @@ def test_stat_fn_path_basic_shapes_and_metadata():
 # ------------------------------------------------------------------ #
 def test_cannot_supply_both_formula_and_stat_fn():
     df = make_base_df()
-    with pytest.raises(ValueError, match="provide either `formula`.*`stat_fn`, not both"):
+    with pytest.raises(
+        ValueError, match="provide either `formula`.*`stat_fn`, not both"
+    ):
         validate_inputs(
             df,
             permute_var="T",
@@ -148,7 +150,9 @@ def test_stat_required_in_formula_mode_and_forbidden_in_stat_fn_mode():
         validate_inputs(df, permute_var="T", formula="y ~ T")
 
     # stat_fn path: stat must be omitted
-    with pytest.raises(ValueError, match="`stat` should not be supplied when using stat_fn"):
+    with pytest.raises(
+        ValueError, match="`stat` should not be supplied when using stat_fn"
+    ):
         validate_inputs(df, permute_var="T", stat_fn=diff_in_means, stat="T")
 
 
@@ -160,8 +164,12 @@ def test_alternative_valid_values_ok(alt):
 
 def test_alternative_invalid_raises():
     df = make_base_df()
-    with pytest.raises(ValueError, match="alternative must be 'two-sided', 'left', or 'right'"):
-        validate_inputs(df, permute_var="T", formula="y ~ T", stat="T", alternative="twosided")
+    with pytest.raises(
+        ValueError, match="alternative must be 'two-sided', 'left', or 'right'"
+    ):
+        validate_inputs(
+            df, permute_var="T", formula="y ~ T", stat="T", alternative="twosided"
+        )
 
 
 @pytest.mark.parametrize("alpha", [0.0, 1.0, -0.1, 1.1])
@@ -183,7 +191,9 @@ def test_ci_method_invalid_raises():
         ValueError,
         match=r"ci_method must be 'cp' \(Clopper–Pearson\) or 'normal' \(Wald with continuity correction\)",
     ):
-        validate_inputs(df, permute_var="T", formula="y ~ T", stat="T", ci_method="beta")
+        validate_inputs(
+            df, permute_var="T", formula="y ~ T", stat="T", ci_method="beta"
+        )
 
 
 @pytest.mark.parametrize("ci_mode", ["none", "bounds", "grid"])
@@ -436,7 +446,9 @@ def test_invalid_formula_message():
 
 def test_stat_must_be_rhs_term_in_formula():
     df = make_base_df()
-    with pytest.raises(ValueError, match="stat 'not_in_rhs' not found among RHS terms of formula"):
+    with pytest.raises(
+        ValueError, match="stat 'not_in_rhs' not found among RHS terms of formula"
+    ):
         validate_inputs(df, permute_var="T", formula="y ~ T + x1", stat="not_in_rhs")
 
 
@@ -456,7 +468,9 @@ def test_stat_fn_error_is_wrapped_with_clear_message():
     def bad_stat(df_: pd.DataFrame) -> float:  # noqa: ARG001
         raise RuntimeError("boom")
 
-    with pytest.raises(ValueError, match="stat_fn raised an error on original data: boom"):
+    with pytest.raises(
+        ValueError, match="stat_fn raised an error on original data: boom"
+    ):
         validate_inputs(df, permute_var="T", stat_fn=bad_stat)
 
 
@@ -492,7 +506,9 @@ def test_stat_fn_runtime_warning_when_slow(monkeypatch):
     # Warmup time should be positive and we should have recorded a warning
     assert v.warmup_time > 0.0
     msgs = v.warnings
-    assert any(("stat_fn took" in m) and ("permutation test may be slow" in m) for m in msgs)
+    assert any(
+        ("stat_fn took" in m) and ("permutation test may be slow" in m) for m in msgs
+    )
 
 
 def test_generic_ci_warning_added_when_ci_mode_and_coef_ci_generic_false():

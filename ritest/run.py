@@ -22,7 +22,12 @@ from typing import Callable, Dict, Optional, Tuple, cast
 import numpy as np
 import pandas as pd
 
-from .ci.coef_ci import Alt, coef_ci_band_fast, coef_ci_bounds_fast, coef_ci_bounds_generic
+from .ci.coef_ci import (
+    Alt,
+    coef_ci_band_fast,
+    coef_ci_bounds_fast,
+    coef_ci_bounds_generic,
+)
 from .ci.pvalue_ci import _PValCIMethod, pvalue_ci
 from .config import DEFAULTS
 
@@ -55,7 +60,9 @@ def _coerce_n_jobs(val: int | None) -> int:
     return max(v, 1)
 
 
-def _coerce_ci_method(x: str | _PValCIMethod | None, fallback: _PValCIMethod) -> _PValCIMethod:
+def _coerce_ci_method(
+    x: str | _PValCIMethod | None, fallback: _PValCIMethod
+) -> _PValCIMethod:
     """Normalise user input to core labels `'cp'` or `'normal'`."""
     if x is None:
         return fallback
@@ -133,9 +140,13 @@ def ritest(  # noqa: C901
     ci_step = float(cfg["ci_step"]) if ci_step is None else float(ci_step)
     ci_tol = float(cfg["ci_tol"])  # reserved for future use
     coef_ci_generic = (
-        bool(cfg["coef_ci_generic"]) if coef_ci_generic is None else bool(coef_ci_generic)
+        bool(cfg["coef_ci_generic"])
+        if coef_ci_generic is None
+        else bool(coef_ci_generic)
     )
-    n_jobs = _coerce_n_jobs(int(cfg.get("n_jobs", 1)) if n_jobs is None else int(n_jobs))
+    n_jobs = _coerce_n_jobs(
+        int(cfg.get("n_jobs", 1)) if n_jobs is None else int(n_jobs)
+    )
     # Memory/chunking knobs (soft budget)
     perm_chunk_bytes = int(cfg.get("perm_chunk_bytes", 256 * 1024 * 1024))
     perm_chunk_min_rows = int(cfg.get("perm_chunk_min_rows", 64))
@@ -166,7 +177,12 @@ def ritest(  # noqa: C901
     linear_model = v.stat_fn is None
     if linear_model:
         ols = FastOLS(
-            v.y, v.X, v.treat_idx, weights=v.weights, cluster=v.cluster, compute_vcov=True
+            v.y,
+            v.X,
+            v.treat_idx,
+            weights=v.weights,
+            cluster=v.cluster,
+            compute_vcov=True,
         )
         obs_stat = float(ols.beta_hat)
         se_obs = float(ols.se)
@@ -200,7 +216,12 @@ def ritest(  # noqa: C901
         Xp = v.X.copy()
         Xp[:, v.treat_idx] = T_perm  # int8 → float cast on assignment
         ols_r = FastOLS(
-            v.y, Xp, v.treat_idx, weights=v.weights, cluster=v.cluster, compute_vcov=False
+            v.y,
+            Xp,
+            v.treat_idx,
+            weights=v.weights,
+            cluster=v.cluster,
+            compute_vcov=False,
         )
         beta_r = float(ols_r.beta_hat)
         Kr = float(ols_r.c_vector @ t_metric_lin)  # type: ignore[arg-type]
@@ -304,7 +325,9 @@ def ritest(  # noqa: C901
                         perm_stats[r] = float(stat_fn_local(dfp))  # type: ignore[arg-type]
                 else:
                     with ThreadPoolExecutor(max_workers=n_jobs) as ex:
-                        for r, z in ex.map(_eval_one, ((r, T_perms[r]) for r in range(reps))):
+                        for r, z in ex.map(
+                            _eval_one, ((r, T_perms[r]) for r in range(reps))
+                        ):
                             perm_stats[r] = z
         else:
             # Streaming path: generate blocks with bounded memory and process each in turn.
@@ -446,7 +469,9 @@ def ritest(  # noqa: C901
                 if ci_mode == "grid":
                     grid = (
                         np.arange(
-                            -ci_range * se_scale, ci_range * se_scale + 1e-12, ci_step * se_scale
+                            -ci_range * se_scale,
+                            ci_range * se_scale + 1e-12,
+                            ci_step * se_scale,
                         )
                         + obs_stat
                     )

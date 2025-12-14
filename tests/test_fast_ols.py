@@ -28,7 +28,9 @@ import statsmodels.api as sm
 
 from ritest.engine.fast_ols import NUMBA_OK, FastOLS, fast_permuted_stats
 
-print(f"[fast_ols] Permutation backend: {'Numba (parallel)' if NUMBA_OK else 'NumPy fallback'}")
+print(
+    f"[fast_ols] Permutation backend: {'Numba (parallel)' if NUMBA_OK else 'NumPy fallback'}"
+)
 
 # Global tolerance for numeric parity vs statsmodels
 RTOL = 1e-3
@@ -75,7 +77,9 @@ def test_ols_hc1_matches_statsmodels_verbose():
     print(
         f"statsmodels: beta={sm_fit.params[t_idx]:.6f}, SE={sm_fit.bse[t_idx]:.6f}, time={t2-t1:.4f}s"
     )
-    print(f"FastOLS:     beta={fo.coef():.6f},     SE={fo.se_robust():.6f},  time={t3-t2:.4f}s")
+    print(
+        f"FastOLS:     beta={fo.coef():.6f},     SE={fo.se_robust():.6f},  time={t3-t2:.4f}s"
+    )
 
     assert np.allclose(sm_fit.params[t_idx], fo.coef(), rtol=RTOL)
     assert np.allclose(sm_fit.bse[t_idx], fo.se_robust(), rtol=RTOL)
@@ -100,7 +104,9 @@ def test_wls_hc1_matches_statsmodels_verbose():
     print(
         f"statsmodels: beta={sm_fit.params[t_idx]:.6f}, SE={sm_fit.bse[t_idx]:.6f}, time={t2-t1:.4f}s"
     )
-    print(f"FastOLS:     beta={fo.coef():.6f},     SE={fo.se_robust():.6f},  time={t3-t2:.4f}s")
+    print(
+        f"FastOLS:     beta={fo.coef():.6f},     SE={fo.se_robust():.6f},  time={t3-t2:.4f}s"
+    )
 
     assert np.allclose(sm_fit.params[t_idx], fo.coef(), rtol=RTOL)
     assert np.allclose(sm_fit.bse[t_idx], fo.se_robust(), rtol=RTOL)
@@ -127,7 +133,9 @@ def test_crv1_matches_statsmodels_full_vcov_verbose():
     print(
         f"statsmodels: beta={sm_fit.params[t_idx]:.6f}, SE={sm_fit.bse[t_idx]:.6f}, time={t2-t1:.4f}s"
     )
-    print(f"FastOLS:     beta={fo.coef():.6f},     SE={fo.se_robust():.6f},  time={t3-t2:.4f}s")
+    print(
+        f"FastOLS:     beta={fo.coef():.6f},     SE={fo.se_robust():.6f},  time={t3-t2:.4f}s"
+    )
     print(f"Max |Δ| (VCOV): {max_abs:.2e}")
 
     assert np.allclose(sm_fit.params[t_idx], fo.coef(), rtol=RTOL)
@@ -162,7 +170,9 @@ def test_weighted_clustered_crv1_matches_statsmodels_verbose():
     print(
         f"statsmodels: beta={sm_fit.params[t_idx]:.6f}, SE={sm_fit.bse[t_idx]:.6f}, time={t2-t1:.4f}s"
     )
-    print(f"FastOLS:     beta={fo.coef():.6f},     SE={fo.se_robust():.6f},  time={t3-t2:.4f}s")
+    print(
+        f"FastOLS:     beta={fo.coef():.6f},     SE={fo.se_robust():.6f},  time={t3-t2:.4f}s"
+    )
     print(f"Max |Δ| (VCOV): {max_abs:.2e}")
 
     assert np.allclose(sm_fit.params[t_idx], fo.coef(), rtol=RTOL)

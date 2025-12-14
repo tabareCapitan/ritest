@@ -258,8 +258,12 @@ def test_simulated_large_case():
     t2 = time.perf_counter()
 
     print(f"  CP (c={c})")
-    print(f"    → yours:       ({lo_cp:.12f}, {hi_cp:.12f})   [{(t1 - t0)*1000:.2f} ms]")
-    print(f"    → statsmodels: ({lo_sm:.12f}, {hi_sm:.12f})   [{(t2 - t1)*1000:.2f} ms]")
+    print(
+        f"    → yours:       ({lo_cp:.12f}, {hi_cp:.12f})   [{(t1 - t0)*1000:.2f} ms]"
+    )
+    print(
+        f"    → statsmodels: ({lo_sm:.12f}, {hi_sm:.12f})   [{(t2 - t1)*1000:.2f} ms]"
+    )
     assert math.isclose(lo_cp, lo_sm, rel_tol=TOL, abs_tol=TOL)
     assert math.isclose(hi_cp, hi_sm, rel_tol=TOL, abs_tol=TOL)
 
@@ -271,7 +275,9 @@ def test_simulated_large_case():
     t5 = time.perf_counter()
 
     print("  Normal")
-    print(f"    → yours:    ({lo_norm:.12f}, {hi_norm:.12f})   [{(t4 - t3)*1000:.2f} ms]")
+    print(
+        f"    → yours:    ({lo_norm:.12f}, {hi_norm:.12f})   [{(t4 - t3)*1000:.2f} ms]"
+    )
     print(f"    → expected: ({lo_exp:.12f}, {hi_exp:.12f})   [{(t5 - t4)*1000:.2f} ms]")
     assert math.isclose(lo_norm, lo_exp, rel_tol=TOL, abs_tol=TOL)
     assert math.isclose(hi_norm, hi_exp, rel_tol=TOL, abs_tol=TOL)
@@ -293,7 +299,9 @@ def test_random_parameter_sweep():
     for _ in range(50):
         reps = int(rng.integers(1, 200))
         c = int(rng.integers(0, reps + 1))
-        alpha = float(rng.uniform(1e-6, 0.5))  # avoid extreme tails for stability checks
+        alpha = float(
+            rng.uniform(1e-6, 0.5)
+        )  # avoid extreme tails for stability checks
         for method in ("cp", "normal"):
             lo, hi = pvalue_ci(c, reps, alpha=alpha, method=method)
             assert isinstance(lo, float) and isinstance(hi, float)

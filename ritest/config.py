@@ -98,15 +98,21 @@ def _validate_pair(key: str, val: Any) -> None:
         except (TypeError, ValueError):
             ok = False
         if not ok:
-            raise ValueError(f"alpha must be a float strictly between 0 and 1 (got {val!r})")
+            raise ValueError(
+                f"alpha must be a float strictly between 0 and 1 (got {val!r})"
+            )
 
     elif key == "ci_method":
         if val not in _ALLOWED_CI_METHODS:
-            raise ValueError(f"ci_method must be one of {_ALLOWED_CI_METHODS} (got {val!r})")
+            raise ValueError(
+                f"ci_method must be one of {_ALLOWED_CI_METHODS} (got {val!r})"
+            )
 
     elif key == "ci_mode":
         if val not in _ALLOWED_CI_MODES:
-            raise ValueError(f"ci_mode must be one of {_ALLOWED_CI_MODES} (got {val!r})")
+            raise ValueError(
+                f"ci_mode must be one of {_ALLOWED_CI_MODES} (got {val!r})"
+            )
 
     elif key in {"ci_range", "ci_step", "ci_tol"}:
         if not isinstance(val, (int, float)) or val <= 0:
@@ -124,11 +130,15 @@ def _validate_pair(key: str, val: Any) -> None:
 
     elif key == "perm_chunk_bytes":
         if not isinstance(val, int) or val <= 0:
-            raise ValueError(f"perm_chunk_bytes must be a positive integer (bytes, got {val!r})")
+            raise ValueError(
+                f"perm_chunk_bytes must be a positive integer (bytes, got {val!r})"
+            )
 
     elif key == "perm_chunk_min_rows":
         if not isinstance(val, int) or val < 1:
-            raise ValueError(f"perm_chunk_min_rows must be an integer >= 1 (got {val!r})")
+            raise ValueError(
+                f"perm_chunk_min_rows must be an integer >= 1 (got {val!r})"
+            )
 
 
 def ritest_set(overrides: Mapping[str, Any]) -> None:

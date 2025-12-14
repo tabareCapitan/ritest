@@ -88,7 +88,9 @@ def coef_ci_band_fast(
     # If both K_obs and all K_perm are zero, the statistic is invariant to β₀.
     if K_obs == 0.0 and np.all(K_perm == 0.0):
         grid = (
-            np.arange(-ci_range * se, ci_range * se + 1e-12, ci_step * se, dtype=np.float64)
+            np.arange(
+                -ci_range * se, ci_range * se + 1e-12, ci_step * se, dtype=np.float64
+            )
             + beta_obs
         )
         # Constant p-values in this degenerate case
@@ -102,7 +104,8 @@ def coef_ci_band_fast(
 
     # Build grid of β₀ values
     grid = (
-        np.arange(-ci_range * se, ci_range * se + 1e-12, ci_step * se, dtype=np.float64) + beta_obs
+        np.arange(-ci_range * se, ci_range * se + 1e-12, ci_step * se, dtype=np.float64)
+        + beta_obs
     )
 
     # crit: shape (G,), dist: shape (R, G)
@@ -247,7 +250,8 @@ def coef_ci_bounds_generic(
         raise ValueError("alpha must be in (0, 1)")
 
     grid = (
-        np.arange(-ci_range * se, ci_range * se + 1e-12, ci_step * se, dtype=np.float64) + beta_obs
+        np.arange(-ci_range * se, ci_range * se + 1e-12, ci_step * se, dtype=np.float64)
+        + beta_obs
     )
     pvals = np.array([runner(b0) for b0 in grid], dtype=np.float64)
 

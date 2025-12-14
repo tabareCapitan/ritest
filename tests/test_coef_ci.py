@@ -54,7 +54,11 @@ def make_linear_fixture(n=300, beta_true=1.5, gamma=0.6, alpha0=0.7, seed=42):
 
 
 def runner_from_arrays(
-    beta_obs: float, beta_perm: np.ndarray, K_obs: float, K_perm: np.ndarray, alternative: Alt
+    beta_obs: float,
+    beta_perm: np.ndarray,
+    K_obs: float,
+    K_perm: np.ndarray,
+    alternative: Alt,
 ):
     """
     Build a generic-runner closure that replicates the fast comparator exactly.

@@ -216,7 +216,9 @@ def test_generic_chunking_vs_eager_identical(mode: Literal["none", "bounds", "gr
         if eager.coef_ci_band is not None:
             beta_grid, pvals = eager.coef_ci_band
             assert isinstance(beta_grid, np.ndarray) and isinstance(pvals, np.ndarray)
-            assert beta_grid.ndim == 1 and pvals.ndim == 1 and beta_grid.size == pvals.size
+            assert (
+                beta_grid.ndim == 1 and pvals.ndim == 1 and beta_grid.size == pvals.size
+            )
             assert np.all((pvals >= 0.0) & (pvals <= 1.0))
 
 

@@ -113,8 +113,12 @@ class RitestResult:
 
     # Coefficient CI outputs
     coef_ci_bounds: Optional[Tuple[float, float]] = None  # (lo, hi) or None
-    coef_ci_band: Optional[Tuple[np.ndarray, np.ndarray]] = None  # (beta_grid, pvals) or None
-    band_valid_linear: bool = False  # True if fast-linear path; False if generic (when band exists)
+    coef_ci_band: Optional[Tuple[np.ndarray, np.ndarray]] = (
+        None  # (beta_grid, pvals) or None
+    )
+    band_valid_linear: bool = (
+        False  # True if fast-linear path; False if generic (when band exists)
+    )
 
     # Full permutation stats (optional, for diagnostics)
     perm_stats: Optional[np.ndarray] = None
@@ -230,7 +234,9 @@ class RitestResult:
         lines.append(
             f"p-value:                {_fmt_float(self.pval, nd=4)} ({_fmt_pct(self.pval)})"
         )
-        lines.append(f"P-value CI @ α={_fmt_float(a, 3)}: {_fmt_ci(self.pval_ci, nd=4)}")
+        lines.append(
+            f"P-value CI @ α={_fmt_float(a, 3)}: {_fmt_ci(self.pval_ci, nd=4)}"
+        )
         lines.append(f"As-or-more extreme:     {self.c} / {self.reps}")
 
         # Design flags
@@ -289,7 +295,9 @@ class RitestResult:
             If `coef_ci_band` is not available (e.g. ci_mode != "grid").
         """
         if self.coef_ci_band is None:
-            raise ValueError("coef_ci_band is not available (likely ci_mode != 'grid').")
+            raise ValueError(
+                "coef_ci_band is not available (likely ci_mode != 'grid')."
+            )
 
         # Lazy import to avoid unnecessary dependency cost on summary-only use
         import matplotlib.pyplot as plt  # type: ignore
@@ -298,8 +306,14 @@ class RitestResult:
         beta_grid = np.asarray(beta_grid, dtype=float)
         pvals = np.asarray(pvals, dtype=float)
 
-        if beta_grid.ndim != 1 or pvals.ndim != 1 or beta_grid.shape[0] != pvals.shape[0]:
-            raise ValueError("coef_ci_band must be (1D beta_grid, 1D pvals) of equal length.")
+        if (
+            beta_grid.ndim != 1
+            or pvals.ndim != 1
+            or beta_grid.shape[0] != pvals.shape[0]
+        ):
+            raise ValueError(
+                "coef_ci_band must be (1D beta_grid, 1D pvals) of equal length."
+            )
 
         # Sort by beta for a clean monotone x-axis
         order = np.argsort(beta_grid)
@@ -317,17 +331,28 @@ class RitestResult:
 
         # Observed effect
         ax.axvline(
-            x=self.obs_stat, linestyle=":", linewidth=1.0, label=f"β̂ = {_fmt_float(self.obs_stat)}"
+            x=self.obs_stat,
+            linestyle=":",
+            linewidth=1.0,
+            label=f"β̂ = {_fmt_float(self.obs_stat)}",
         )
 
         # Bounds if available
         if self.coef_ci_bounds is not None:
             lo, hi = self.coef_ci_bounds
             ax.axvline(
-                x=lo, linestyle="--", linewidth=1.0, alpha=0.8, label=f"lo = {_fmt_float(lo)}"
+                x=lo,
+                linestyle="--",
+                linewidth=1.0,
+                alpha=0.8,
+                label=f"lo = {_fmt_float(lo)}",
             )
             ax.axvline(
-                x=hi, linestyle="--", linewidth=1.0, alpha=0.8, label=f"hi = {_fmt_float(hi)}"
+                x=hi,
+                linestyle="--",
+                linewidth=1.0,
+                alpha=0.8,
+                label=f"hi = {_fmt_float(hi)}",
             )
 
         # Cosmetics

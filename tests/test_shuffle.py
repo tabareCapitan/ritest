@@ -154,7 +154,9 @@ def test_cluster_within_strata_invariants_hold():
     strata = np.array([0, 0, 0, 0, 1, 1, 1, 1], dtype=int)
     # cluster values: in stratum 0 -> {10, 20}; in stratum 1 -> {30, 40}
     a = np.array([10, 10, 20, 20, 30, 30, 40, 40], dtype=int)
-    out = permute_assignment(a, cluster=cluster, strata=strata, rng=np.random.default_rng(5))
+    out = permute_assignment(
+        a, cluster=cluster, strata=strata, rng=np.random.default_rng(5)
+    )
     describe_perm("cluster-within-strata", a, out)
 
     assert out.shape == a.shape
@@ -177,7 +179,9 @@ def test_cluster_within_strata_length_mismatch_raises():
     cluster = np.array([0, 0, 1, 1])
     strata = np.array([0, 0, 0])  # wrong length
     with pytest.raises(ValueError, match="strata.*length.*match"):
-        _ = permute_assignment(a, cluster=cluster, strata=strata, rng=np.random.default_rng(2))
+        _ = permute_assignment(
+            a, cluster=cluster, strata=strata, rng=np.random.default_rng(2)
+        )
 
 
 # ------------------------------------------------------------------ #
@@ -238,7 +242,9 @@ def test_generate_permuted_matrix_shapes_and_content_plain_and_strata():
     assert perms_plain_1.dtype == x.dtype
     assert np.array_equal(perms_plain_1, perms_plain_2)
 
-    perms_strata = generate_permuted_matrix(x, reps, strata=st, rng=np.random.default_rng(7))
+    perms_strata = generate_permuted_matrix(
+        x, reps, strata=st, rng=np.random.default_rng(7)
+    )
     print("[gpm strata] per-row invariants checked")
     for r in range(reps):
         assert multiset_equal(perms_strata[r, st == 0], x[st == 0])
@@ -313,9 +319,7 @@ def test_uniqueness_warning_triggers_for_tiny_cluster_space():
     # Only 2 clusters -> only 2 possible permutations; with many reps, uniqueness < 90%
     cluster = np.repeat([0, 1], 5)
     a = np.where(cluster == 0, 0, 1)
-    reps = (
-        3000  # large enough to trigger warning; also triggers downsampling path (>5000) if raised
-    )
+    reps = 3000  # large enough to trigger warning; also triggers downsampling path (>5000) if raised
     rng = np.random.default_rng(555)
 
     with warnings.catch_warnings(record=True) as w:

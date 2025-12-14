@@ -113,7 +113,9 @@ def _np_perm_cluster(
     One representative value per cluster is permuted, then broadcast back
     to members using inverse indexing.
     """
-    clusters, first_idx, inv = np.unique(cluster, return_index=True, return_inverse=True)
+    clusters, first_idx, inv = np.unique(
+        cluster, return_index=True, return_inverse=True
+    )
     cluster_vals = a[first_idx]
     perm_vals = cluster_vals[rng.permutation(clusters.size)]
     out = perm_vals[inv]
@@ -152,7 +154,9 @@ def _np_perm_cluster_strata(
     for s in np.unique(strata):
         mask = strata == s
         clust_s = cluster[mask]
-        clust_ids, first_idx, inv = np.unique(clust_s, return_index=True, return_inverse=True)
+        clust_ids, first_idx, inv = np.unique(
+            clust_s, return_index=True, return_inverse=True
+        )
         vals = a[mask][first_idx]
         perm_vals = vals[rng.permutation(clust_ids.size)]
         out[mask] = perm_vals[inv]
@@ -171,7 +175,9 @@ def _assert_cluster_constant(a: np.ndarray, cluster: np.ndarray) -> None:
     Uses a representative-per-cluster vector and inverse indexing to
     verify that all rows in each cluster share the same value.
     """
-    clusters, first_idx, inv = np.unique(cluster, return_index=True, return_inverse=True)
+    clusters, first_idx, inv = np.unique(
+        cluster, return_index=True, return_inverse=True
+    )
     first_vals = a[first_idx]
     expected = first_vals[inv]
     if not np.all(a == expected):
@@ -269,8 +275,12 @@ def permute_assignment(
                 idx = np.where(strata == s)[0]
                 idx_list.append(idx)
                 vals_list.append(rng.permutation(a[idx]))
-            idx_all = np.concatenate(idx_list) if idx_list else np.empty(0, dtype=np.int64)
-            vals_all = np.concatenate(vals_list) if vals_list else np.empty(0, dtype=a.dtype)
+            idx_all = (
+                np.concatenate(idx_list) if idx_list else np.empty(0, dtype=np.int64)
+            )
+            vals_all = (
+                np.concatenate(vals_list) if vals_list else np.empty(0, dtype=a.dtype)
+            )
             out = np.empty_like(a)
             _nb_scatter_by_index(out, idx_all, vals_all)
             return out

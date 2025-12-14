@@ -110,7 +110,9 @@ def _binary_int8_from_series(
     lo, hi = uniq[0], uniq[1]
 
     # If exactly {0,1} (int or float), we avoid a user warning; still return int8 for compactness.
-    is_exact_01 = (lo == 0 and hi == 1) or (lo == 0.0 and hi == 1.0)  # ints/bools  # floats
+    is_exact_01 = (lo == 0 and hi == 1) or (
+        lo == 0.0 and hi == 1.0
+    )  # ints/bools  # floats
 
     # Map the *greater* of the two values to 1, the lesser to 0
     out = (vals == hi).astype(np.int8, copy=False)
@@ -168,11 +170,15 @@ def validate_inputs(
     has_formula = formula is not None
     has_stat_fn = stat_fn is not None
     _require(
-        has_formula ^ has_stat_fn, "provide either `formula` (+ `stat`) **or** `stat_fn`, not both"
+        has_formula ^ has_stat_fn,
+        "provide either `formula` (+ `stat`) **or** `stat_fn`, not both",
     )
 
     if has_formula:
-        _require(stat is not None, "`stat` (name of treatment column) required when using formula")
+        _require(
+            stat is not None,
+            "`stat` (name of treatment column) required when using formula",
+        )
     else:
         _require(stat is None, "`stat` should not be supplied when using stat_fn")
 
@@ -224,7 +230,10 @@ def validate_inputs(
         cser = cast(pd.Series, df[cluster])
         _require(~cser.isna().any(), f"column '{cluster}' contains missing values")
         cluster_codes_full = _factorize_series_no_na(cser)
-        _require(np.unique(cluster_codes_full).size >= 2, "cluster must have at least 2 groups")
+        _require(
+            np.unique(cluster_codes_full).size >= 2,
+            "cluster must have at least 2 groups",
+        )
 
     if strata is not None:
         _require(strata in df.columns, f"column '{strata}' not in dataframe")
@@ -283,7 +292,9 @@ def validate_inputs(
         # Re-check basic invariants on the subset
         _require(~np.isnan(y).any(), "outcome contains NA")
         _require(~np.isnan(X).any(), "design matrix contains NA")
-        _require(~T_ser.isna().any(), "permute_var contains NA after subsetting by formula")
+        _require(
+            ~T_ser.isna().any(), "permute_var contains NA after subsetting by formula"
+        )
         _require(
             T_ser.nunique(dropna=True) == 2,
             "permute_var must be binary (exactly 2 distinct values) in the analysis sample",
@@ -318,7 +329,9 @@ def validate_inputs(
             )
 
         # treatment idx (stat must be one of the RHS column names)
-        _require(stat in X_mat.columns, f"stat '{stat}' not found among RHS terms of formula")
+        _require(
+            stat in X_mat.columns, f"stat '{stat}' not found among RHS terms of formula"
+        )
         treat_idx = list(X_mat.columns).index(stat)
 
         return ValidatedInputs(
@@ -356,11 +369,14 @@ def validate_inputs(
         dt = time.perf_counter() - t0
 
         _require(
-            isinstance(stat0, (int, float, np.floating)), "stat_fn must return a numeric scalar"
+            isinstance(stat0, (int, float, np.floating)),
+            "stat_fn must return a numeric scalar",
         )
 
         if dt > 1.0:
-            warnings_list.append(f"stat_fn took {dt:.2f}s; permutation test may be slow.")
+            warnings_list.append(
+                f"stat_fn took {dt:.2f}s; permutation test may be slow."
+            )
 
         # Coerce full-sample permute_var to binary int8
         T_ser = cast(pd.Series, df[permute_var])

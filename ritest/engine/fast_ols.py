@@ -350,7 +350,9 @@ class FastOLS:
         Y = np.asarray(Y, dtype=np.float64)
         if Y.ndim == 1:
             if Y.size != self.c_perm_vector.size:
-                raise ValueError(f"Y has length {Y.size}, expected {self.c_perm_vector.size}")
+                raise ValueError(
+                    f"Y has length {Y.size}, expected {self.c_perm_vector.size}"
+                )
             Y = Y.reshape(1, -1)
         elif Y.ndim == 2:
             if Y.shape[1] != self.c_perm_vector.size:

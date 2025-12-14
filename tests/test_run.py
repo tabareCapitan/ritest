@@ -21,7 +21,9 @@ def make_linear_df(n=240, seed=123, beta=0.6):
     w = np.exp(rng.normal(scale=0.2, size=n))  # positive analytic weights
     clusters = (np.arange(n) // 12).astype(int)  # ~20 clusters
     strata = np.where(rng.random(n) < 0.5, "A", "B")  # 2 strata
-    df = pd.DataFrame({"y": y, "T": T, "x1": x1, "x2": x2, "w": w, "clu": clusters, "str": strata})
+    df = pd.DataFrame(
+        {"y": y, "T": T, "x1": x1, "x2": x2, "w": w, "clu": clusters, "str": strata}
+    )
     return df
 
 
@@ -37,7 +39,9 @@ def make_linear_df_cluster_T(n=240, seed=321, beta=0.6):
     y = beta * T + 0.35 * x1 - 0.2 * x2 + rng.normal(scale=1.0, size=n)
     w = np.exp(rng.normal(scale=0.2, size=n))
     strata = np.where(rng.random(n) < 0.5, "A", "B")
-    df = pd.DataFrame({"y": y, "T": T, "x1": x1, "x2": x2, "w": w, "clu": clusters, "str": strata})
+    df = pd.DataFrame(
+        {"y": y, "T": T, "x1": x1, "x2": x2, "w": w, "clu": clusters, "str": strata}
+    )
     return df
 
 
@@ -64,7 +68,9 @@ def test_formula_ci_modes_none_bounds_grid():
     # ci_mode = bounds  → just (lo, hi)
     with ritest_config({"reps": 399, "seed": 7, "ci_mode": "bounds", "n_jobs": 1}):
         r_bounds = ritest(df, permute_var="T", formula="y ~ T + x1 + x2", stat="T")
-    assert isinstance(r_bounds.coef_ci_bounds, tuple) and len(r_bounds.coef_ci_bounds) == 2
+    assert (
+        isinstance(r_bounds.coef_ci_bounds, tuple) and len(r_bounds.coef_ci_bounds) == 2
+    )
     lo, hi = r_bounds.coef_ci_bounds
     assert np.isfinite(lo) and np.isfinite(hi) and lo <= hi
     assert r_bounds.coef_ci_band is None
@@ -145,7 +151,13 @@ def test_generic_gating_skip_vs_enable():
 
     # By default, coef-CI is skipped for stat_fn regardless of ci_mode
     with ritest_config(
-        {"reps": 199, "seed": 5, "ci_mode": "grid", "coef_ci_generic": False, "n_jobs": 2}
+        {
+            "reps": 199,
+            "seed": 5,
+            "ci_mode": "grid",
+            "coef_ci_generic": False,
+            "n_jobs": 2,
+        }
     ):
         r_skip = ritest(df, permute_var="T", stat_fn=diff_in_means)
     assert r_skip.coef_ci_bounds is None
@@ -153,10 +165,18 @@ def test_generic_gating_skip_vs_enable():
 
     # Enable generic coef-CI (bounds)
     with ritest_config(
-        {"reps": 199, "seed": 5, "ci_mode": "bounds", "coef_ci_generic": True, "n_jobs": 2}
+        {
+            "reps": 199,
+            "seed": 5,
+            "ci_mode": "bounds",
+            "coef_ci_generic": True,
+            "n_jobs": 2,
+        }
     ):
         r_bounds = ritest(df, permute_var="T", stat_fn=diff_in_means)
-    assert isinstance(r_bounds.coef_ci_bounds, tuple) and len(r_bounds.coef_ci_bounds) == 2
+    assert (
+        isinstance(r_bounds.coef_ci_bounds, tuple) and len(r_bounds.coef_ci_bounds) == 2
+    )
     lo, hi = r_bounds.coef_ci_bounds
     assert np.isfinite(lo) and np.isfinite(hi) and lo <= hi
     assert r_bounds.coef_ci_band is None
@@ -164,7 +184,13 @@ def test_generic_gating_skip_vs_enable():
 
     # Enable generic coef-CI (grid)
     with ritest_config(
-        {"reps": 199, "seed": 5, "ci_mode": "grid", "coef_ci_generic": True, "n_jobs": 2}
+        {
+            "reps": 199,
+            "seed": 5,
+            "ci_mode": "grid",
+            "coef_ci_generic": True,
+            "n_jobs": 2,
+        }
     ):
         r_grid = ritest(df, permute_var="T", stat_fn=diff_in_means)
     assert r_grid.coef_ci_band is not None
@@ -198,8 +224,16 @@ def test_run_rejects_both_formula_and_stat_fn():
     df = make_linear_df()
     with ritest_config({"reps": 99, "seed": 3, "ci_mode": "none"}):
         try:
-            ritest(df, permute_var="T", formula="y ~ T + x1", stat="T", stat_fn=diff_in_means)
-            assert False, "Expected ValueError when both formula and stat_fn are supplied"
+            ritest(
+                df,
+                permute_var="T",
+                formula="y ~ T + x1",
+                stat="T",
+                stat_fn=diff_in_means,
+            )
+            assert (
+                False
+            ), "Expected ValueError when both formula and stat_fn are supplied"
         except ValueError:
             pass
 
