@@ -21,7 +21,7 @@ rename b_treat tempvar
 count
 
 
-log using "output/colombia_stata", text replace
+log using "output/logs/colombia_stata", text replace
 
 timer clear
 timer on 1

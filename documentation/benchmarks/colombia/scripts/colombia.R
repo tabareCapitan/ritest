@@ -6,6 +6,12 @@
 library(ritest)
 library(fixest)
 
+# start log (text, overwrite)
+sink("documentation/benchmarks/colombia/output/logs/colombia_r.log", split = TRUE)
+cat("=== ritest Colombia benchmark (R) ===\n")
+cat("Timestamp:", format(Sys.time()), "\n\n")
+
+
 # Load the bundled Colombia dataset
 data("colombia")
 
@@ -35,4 +41,11 @@ co_ri
 # print(co_ri)
 
 # Plot null distribution
-plot(co_ri, type = "hist", highlight = "fill")
+# plot(co_ri, type = "hist", highlight = "fill")
+
+
+cat("\n=== END OF LOG ===\n")
+sink()
+
+
+cat("Working directory:", getwd(), "\n")
