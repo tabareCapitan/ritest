@@ -1,0 +1,48 @@
+Benchmark: Linear vs generic (Python)
+Engine: linear (FastOLS path via formula=...)
+Data: simulated_data.csv
+N: 10,000
+Reps: 2000
+Seed: 23
+Formula: y ~ treat + age + female + education_years + log_income + household_size + urban + tenure_months + baseline_spend + purchases_12m + returns_12m + support_tickets_6m + app_sessions_30d + days_since_last_purchase + email_opt_in + promo_exposure_30d + prior_churn + credit_score + satisfaction_score + region_1 + region_2 + region_3 + region_4
+
+Python: 3.13.9
+Platform: Linux-6.17.7-200.fc42.x86_64-x86_64-with-glibc2.41
+pandas: 2.3.3
+statsmodels: 0.14.6
+
+Randomization Inference Result
+===============================
+
+Coefficient
+-----------
+Observed effect (β̂):   0.0820
+Coefficient CI bounds: [-0.1133, 0.2778]
+Coefficient CI band:   not computed
+
+Permutation test
+----------------
+Tail (alternative):     two-sided
+p-value:                0.3990 (39.9%)
+P-value CI @ α=0.050: [0.3775, 0.4208]
+As-or-more extreme:     798 / 2000
+
+Test configuration
+------------------
+Stratified:             no
+Clustered:              no
+Weights:                no
+
+Settings
+--------
+alpha:                  0.050
+seed:                   23
+ci_method:              cp
+ci_mode:                bounds
+n_jobs:                 4
+
+Interpretation
+--------------
+Under the sharp null of no effect for any unit, 39.9% of randomized assignments produced a statistic as or more extreme in either direction than observed. At α = 0.050, the result is **not statistically significant** for a two-sided test. This p-value is finite-sample and design-based from permutation/randomization inference.
+
+Runtime (seconds): 3.274

@@ -7,6 +7,10 @@
 
 cd "~/projects/ritest/documentation/benchmarks/colombia/"
 
+display "Timestamp: " c(current_date) " " c(current_time)
+display ""
+
+
 import delimited using "data/colombia.csv", clear
 
 

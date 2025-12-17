@@ -8,7 +8,18 @@
 
 ## Overview
 
-`ritest` provides randomization inference in Python. It supports simple treatment assignment as well as more complex designs (stratified, cluster,  cluster-within-strata). The package includes a fast OLS-based path for linear models and a generic path for any statistic.
+`ritest` provides fast randomization inference (RI) tools for linear models and arbitrary statistics. It supports weights (WLS) as well as stratified and clustered designs.
+
+📑 Documentation: [https://tabarecapitan.com/projects/ritest](https://tabarecapitan.com/projects/ritest).
+
+## Features
+
+* Linear-model RI with efficient computation.
+* Generic RI for arbitrary scalar statistics via `stat_fn`.
+* Stratified, clustered, and stratified-clustered designs.
+* Weighted least squares (WLS) support.
+* Deterministic seeding, reproducible permutations.
+* Configurable p-value and ultra-fast coefficient bounds and bands.
 
 ## Installation
 
@@ -65,29 +76,6 @@ res = ritest(
 
 print(res.pvalue)
 ```
-
-## Features
-
-- p-values for linear models and arbitrary statistics.
-- Fast coefficient-shift inversion for confidence interval computation (linear models).
-- Generic confidence intervals via user-supplied statistic functions.
-- Stratified, clustered, and cluster-within-strata designs.
-- Vectorized p-value confidence intervals.
-- Clean result object (`RitestResult`) with summary and optional plotting.
-- Optional Numba acceleration for permutation paths.
-
-## Documentation
-
-This README covers the essentials.
-Full documentation, extended examples, and conceptual notes are available at:
-
-**https://tabarecapitan.com/projects/ritest**
-
-## Relationship to existing RI tools
-
-The API and workflow are influenced by existing RI implementations in Stata (`ritest`) and R packages that follow Fisher–Neyman randomization logic. This package provides a native Python alternative with a unified interface for linear and non-linear statistics, explicit support for stratified and clustered designs, and vectorized CI computations.
-
-Benchmarks will be reported separately. A placeholder observation: RI routines in `pyfixest` are likely faster for high-dimensional fixed-effects models due to fixest’s optimized FE machinery. `ritest` focuses on general-purpose RI, transparent design handling, and flexible user-defined statistics rather than FE-heavy workflows.
 
 ## Citation
 

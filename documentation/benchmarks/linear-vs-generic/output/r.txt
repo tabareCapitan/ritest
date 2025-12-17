@@ -1,0 +1,64 @@
+=== ritest linear-vs-generic benchmark (R) ===
+Timestamp: 2025-12-15 12:38:47
+
+OLS (lm) fit:
+
+Call:
+lm(formula = fml, data = df)
+
+Residuals:
+     Min       1Q   Median       3Q      Max
+-19.0734  -3.3147   0.0069   3.3346  19.3317
+
+Coefficients:
+                           Estimate Std. Error t value Pr(>|t|)
+(Intercept)              -2.008e+01  1.414e+00 -14.205  < 2e-16 ***
+treat                     8.199e-02  9.831e-02   0.834 0.404302
+age                       1.961e-01  4.274e-03  45.885  < 2e-16 ***
+female                    1.546e+00  9.860e-02  15.675  < 2e-16 ***
+education_years           1.218e+00  2.236e-02  54.478  < 2e-16 ***
+log_income                5.782e+00  1.544e-01  37.457  < 2e-16 ***
+household_size           -2.857e-02  4.504e-02  -0.634 0.525958
+urban                     8.333e-01  1.032e-01   8.071 7.80e-16 ***
+tenure_months             5.581e-02  2.796e-03  19.958  < 2e-16 ***
+baseline_spend            5.316e-02  3.680e-02   1.445 0.148553
+purchases_12m             4.050e-01  5.360e-02   7.557 4.50e-14 ***
+returns_12m              -4.232e-01  7.618e-02  -5.555 2.84e-08 ***
+support_tickets_6m       -3.011e-01  8.044e-02  -3.743 0.000183 ***
+app_sessions_30d          2.422e-02  8.173e-03   2.963 0.003053 **
+days_since_last_purchase -1.295e-02  1.524e-03  -8.493  < 2e-16 ***
+email_opt_in              6.702e-01  9.969e-02   6.723 1.88e-11 ***
+promo_exposure_30d        8.112e-02  3.337e-02   2.431 0.015073 *
+prior_churn              -1.381e+00  1.110e-01 -12.437  < 2e-16 ***
+credit_score              9.867e-03  9.149e-04  10.785  < 2e-16 ***
+satisfaction_score        1.052e+00  6.816e-02  15.429  < 2e-16 ***
+region_1                  6.452e-01  1.568e-01   4.114 3.92e-05 ***
+region_2                  2.912e-01  1.599e-01   1.821 0.068569 .
+region_3                 -1.591e-01  1.637e-01  -0.971 0.331325
+region_4                 -6.057e-01  1.710e-01  -3.541 0.000400 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 4.909 on 9976 degrees of freedom
+Multiple R-squared:  0.618,	Adjusted R-squared:  0.6172
+F-statistic: 701.8 on 23 and 9976 DF,  p-value: < 2.2e-16
+
+
+RI runtime:
+Time difference of 11.24939 secs
+
+RI result:
+
+          Call: lm(formula = fml, data = df)
+   Res. var(s): treat
+            H0: treat=0
+     Num. reps: 2000
+────────────────────────────────────────────────────────────────────────────────
+  T(obs)         c         n     p=c/n     SE(p)   CI 2.5%  CI 97.5%
+ 0.08199       839      2000    0.4195   0.01815    0.3896    0.4494
+────────────────────────────────────────────────────────────────────────────────
+Note: Confidence interval is with respect to p=c/n.
+Note: c = #{|T| >= |T(obs)|}
+
+
+=== END OF LOG ===

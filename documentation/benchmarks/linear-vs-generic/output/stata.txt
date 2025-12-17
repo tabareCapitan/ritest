@@ -1,0 +1,177 @@
+-------------------------------------------------------------------------------
+      name:  <unnamed>
+       log:  /home/tc/projects/ritest/documentation/benchmarks/linear-vs-generi
+> c/output/stata.txt
+  log type:  text
+ opened on:  15 Dec 2025, 12:40:15
+
+.
+. display "=== ritest linear-vs-generic benchmark (Stata) ==="
+=== ritest linear-vs-generic benchmark (Stata) ===
+
+. display "Timestamp: " c(current_date) " " c(current_time)
+Timestamp: 15 Dec 2025 12:40:15
+
+. display ""
+
+
+.
+. * ---- load data (assume clean) ----
+. import delimited using "data/simulated_data.csv", clear varnames(1)
+(encoding automatically selected: ISO-8859-1)
+(25 vars, 10,000 obs)
+
+.
+. * ---- model covariates (aligned with Python/R) ----
+. local xvars ///
+>     age female education_years log_income household_size urban tenure_months
+> ///
+>     baseline_spend purchases_12m returns_12m support_tickets_6m app_sessions_
+> 30d ///
+>     days_since_last_purchase email_opt_in promo_exposure_30d prior_churn cred
+> it_score ///
+>     satisfaction_score region_1 region_2 region_3 region_4
+
+.
+. display "OLS (reg) fit:"
+OLS (reg) fit:
+
+. reg y treat `xvars'
+
+      Source |       SS           df       MS      Number of obs   =    10,000
+-------------+----------------------------------   F(23, 9976)     =    701.81
+       Model |  389011.799        23  16913.5565   Prob > F        =    0.0000
+    Residual |  240422.079     9,976   24.100048   R-squared       =    0.6180
+-------------+----------------------------------   Adj R-squared   =    0.6172
+       Total |  629433.877     9,999  62.9496827   Root MSE        =    4.9092
+
+------------------------------------------------------------------------------
+           y | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+       treat |   .0819918   .0983118     0.83   0.404    -.1107191    .2747028
+         age |   .1960924   .0042736    45.88   0.000     .1877153    .2044695
+      female |   1.545626   .0986042    15.68   0.000     1.352342     1.73891
+education_~s |   1.218358   .0223641    54.48   0.000      1.17452    1.262196
+  log_income |   5.782229   .1543678    37.46   0.000     5.479637    6.084821
+household_~e |  -.0285657   .0450412    -0.63   0.526    -.1168554    .0597241
+       urban |   .8332671   .1032468     8.07   0.000     .6308826    1.035652
+tenure_mon~s |   .0558053   .0027961    19.96   0.000     .0503244    .0612862
+baseline_s~d |   .0531635   .0367971     1.44   0.149    -.0189663    .1252932
+purchase~12m |   .4050222   .0535987     7.56   0.000      .299958    .5100863
+ returns_12m |  -.4232028    .076178    -5.56   0.000     -.572527   -.2738787
+support_t~6m |  -.3010597   .0804373    -3.74   0.000     -.458733   -.1433863
+app_sess~30d |   .0242169   .0081729     2.96   0.003     .0081964    .0402374
+days_since~e |  -.0129475   .0015244    -8.49   0.000    -.0159357   -.0099594
+email_opt_in |   .6701797   .0996878     6.72   0.000     .4747716    .8655879
+promo_ex~30d |   .0811214    .033369     2.43   0.015     .0157115    .1465313
+ prior_churn |  -1.381052   .1110401   -12.44   0.000    -1.598713   -1.163391
+credit_score |   .0098668   .0009149    10.79   0.000     .0080735    .0116601
+satisfacti~e |    1.05164   .0681577    15.43   0.000     .9180367    1.185242
+    region_1 |   .6451598   .1568175     4.11   0.000     .3377658    .9525537
+    region_2 |   .2912163    .159882     1.82   0.069    -.0221846    .6046173
+    region_3 |  -.1590673   .1637344    -0.97   0.331    -.4800198    .1618851
+    region_4 |  -.6056595   .1710241    -3.54   0.000    -.9409012   -.2704179
+       _cons |  -20.08322   1.413797   -14.21   0.000    -22.85455    -17.3119
+------------------------------------------------------------------------------
+
+.
+. * ---- randomization inference ----
+. * Same parameters as Python/R: reps=2000, seed=23, two-sided, no cluster/stra
+> ta.
+. display ""
+
+
+. display "RI (ritest) starting..."
+RI (ritest) starting...
+
+. timer clear 1
+
+. timer on 1
+
+.
+. ritest treat _b[treat], reps(2000) seed(23) nodots: reg y treat `xvars'
+
+      Source |       SS           df       MS      Number of obs   =    10,000
+-------------+----------------------------------   F(23, 9976)     =    701.81
+       Model |  389011.799        23  16913.5565   Prob > F        =    0.0000
+    Residual |  240422.079     9,976   24.100048   R-squared       =    0.6180
+-------------+----------------------------------   Adj R-squared   =    0.6172
+       Total |  629433.877     9,999  62.9496827   Root MSE        =    4.9092
+
+------------------------------------------------------------------------------
+           y | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+       treat |   .0819918   .0983118     0.83   0.404    -.1107191    .2747028
+         age |   .1960924   .0042736    45.88   0.000     .1877153    .2044695
+      female |   1.545626   .0986042    15.68   0.000     1.352342     1.73891
+education_~s |   1.218358   .0223641    54.48   0.000      1.17452    1.262196
+  log_income |   5.782229   .1543678    37.46   0.000     5.479637    6.084821
+household_~e |  -.0285657   .0450412    -0.63   0.526    -.1168554    .0597241
+       urban |   .8332671   .1032468     8.07   0.000     .6308826    1.035652
+tenure_mon~s |   .0558053   .0027961    19.96   0.000     .0503244    .0612862
+baseline_s~d |   .0531635   .0367971     1.44   0.149    -.0189663    .1252932
+purchase~12m |   .4050222   .0535987     7.56   0.000      .299958    .5100863
+ returns_12m |  -.4232028    .076178    -5.56   0.000     -.572527   -.2738787
+support_t~6m |  -.3010597   .0804373    -3.74   0.000     -.458733   -.1433863
+app_sess~30d |   .0242169   .0081729     2.96   0.003     .0081964    .0402374
+days_since~e |  -.0129475   .0015244    -8.49   0.000    -.0159357   -.0099594
+email_opt_in |   .6701797   .0996878     6.72   0.000     .4747716    .8655879
+promo_ex~30d |   .0811214    .033369     2.43   0.015     .0157115    .1465313
+ prior_churn |  -1.381052   .1110401   -12.44   0.000    -1.598713   -1.163391
+credit_score |   .0098668   .0009149    10.79   0.000     .0080735    .0116601
+satisfacti~e |    1.05164   .0681577    15.43   0.000     .9180367    1.185242
+    region_1 |   .6451598   .1568175     4.11   0.000     .3377658    .9525537
+    region_2 |   .2912163    .159882     1.82   0.069    -.0221846    .6046173
+    region_3 |  -.1590673   .1637344    -0.97   0.331    -.4800198    .1618851
+    region_4 |  -.6056595   .1710241    -3.54   0.000    -.9409012   -.2704179
+       _cons |  -20.08322   1.413797   -14.21   0.000    -22.85455    -17.3119
+------------------------------------------------------------------------------
+
+      Command: regress y treat age female education_years log_income
+                   household_size urban tenure_months baseline_spend
+                   purchases_12m returns_12m support_tickets_6m
+                   app_sessions_30d days_since_last_purchase email_opt_in
+                   promo_exposure_30d prior_churn credit_score
+                   satisfaction_score region_1 region_2 region_3 region_4
+        _pm_1: _b[treat]
+  res. var(s):  treat
+   Resampling:  Permuting treat
+Clust. var(s):  __000001
+     Clusters:  10000
+Strata var(s):  none
+       Strata:  1
+
+------------------------------------------------------------------------------
+T            |     T(obs)       c       n   p=c/n   SE(p) [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+       _pm_1 |   .0819918     786    2000  0.3930  0.0109  .3715147   .4147996
+------------------------------------------------------------------------------
+Note: Confidence interval is with respect to p=c/n.
+Note: c = #{|T| >= |T(obs)|}
+
+.
+. timer off 1
+
+. display ""
+
+
+. display "RI runtime (seconds):"
+RI runtime (seconds):
+
+. timer list 1
+   1:    183.87 /        1 =     183.8650
+
+.
+. display ""
+
+
+. display "=== END OF LOG ==="
+=== END OF LOG ===
+
+. log close
+      name:  <unnamed>
+       log:  /home/tc/projects/ritest/documentation/benchmarks/linear-vs-generi
+> c/output/stata.txt
+  log type:  text
+ closed on:  15 Dec 2025, 12:43:20
+-------------------------------------------------------------------------------

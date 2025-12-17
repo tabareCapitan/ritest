@@ -1,0 +1,119 @@
+----------------------------------------------------------------------------------------------------------------------------------------
+      name:  <unnamed>
+       log:  /home/tc/projects/ritest/documentation/benchmarks/ci-bands/output/stata.txt
+  log type:  text
+ opened on:  15 Dec 2025, 15:03:22
+
+.
+. display "=== ritest ci-bands benchmark (Stata) ==="
+=== ritest ci-bands benchmark (Stata) ===
+
+. display "Timestamp: " c(current_date) " " c(current_time)
+Timestamp: 15 Dec 2025 15:03:22
+
+. display ""
+
+
+.
+. import delimited "data/ci_bands.csv", clear
+(encoding automatically selected: ISO-8859-1)
+(2 vars, 100 obs)
+
+.
+.
+. // run regular ritest
+. ritest treatment (_b[treatment]), nodots reps(500) seed(123): ///
+>         reg y treatment
+
+      Source |       SS           df       MS      Number of obs   =       100
+-------------+----------------------------------   F(1, 98)        =      0.95
+       Model |  1.01915854         1  1.01915854   Prob > F        =    0.3322
+    Residual |  105.170318        98  1.07316651   R-squared       =    0.0096
+-------------+----------------------------------   Adj R-squared   =   -0.0005
+       Total |  106.189476        99  1.07262097   Root MSE        =    1.0359
+
+------------------------------------------------------------------------------
+           y | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+   treatment |   .2019068   .2071875     0.97   0.332    -.2092501    .6130636
+       _cons |  -.0122188   .1465037    -0.08   0.934    -.3029506     .278513
+------------------------------------------------------------------------------
+
+      Command: regress y treatment
+        _pm_1: _b[treatment]
+  res. var(s):  treatment
+   Resampling:  Permuting treatment
+Clust. var(s):  __000001
+     Clusters:  100
+Strata var(s):  none
+       Strata:  1
+
+------------------------------------------------------------------------------
+T            |     T(obs)       c       n   p=c/n   SE(p) [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+       _pm_1 |   .2019068     181     500  0.3620  0.0215  .3198005    .405842
+------------------------------------------------------------------------------
+Note: Confidence interval is with respect to p=c/n.
+Note: c = #{|T| >= |T(obs)|}
+
+.
+.
+. timer clear 1
+
+. timer on 1
+
+.
+. //run ritest to find which hypotheses for the treatment effect in [-1,1] can[not] be rejected
+. tempfile gridsearch
+
+. postfile pf TE pval using `gridsearch'
+
+. forval i=-1(0.05)1 {
+  2. //      qui ritest treatment (_b[treatment]/_se[treatment]), reps(500) null(y `i') seed(123): reg y treatment //run ritest for the
+> ols reg with the studentized treatment effect
+.         qui ritest treatment (_b[treatment]), reps(500) null(y `i') seed(123): reg y treatment // tc: run with _b[treatment] only to c
+> ompare
+  3.
+.
+.         mat pval = r(p)
+  4.         post pf (`i') (pval[1,1])
+  5. }
+
+. postclose pf
+
+.
+.
+. timer off 1
+
+. display ""
+
+
+. display "RI runtime (seconds):"
+RI runtime (seconds):
+
+. timer list 1
+   1:    276.60 /        1 =     276.6020
+
+.
+.
+. //show results to illustrate confidence intervals
+. use `gridsearch', clear
+
+. tw line pval TE , yline(0.05) xline(-0.2 0.2 0.6)
+
+. graph export "output/stata_ci_bands.png", replace
+file output/stata_ci_bands.png saved as PNG format
+
+.
+. display ""
+
+
+. display "=== END OF LOG ==="
+=== END OF LOG ===
+
+. log close
+      name:  <unnamed>
+       log:  /home/tc/projects/ritest/documentation/benchmarks/ci-bands/output/stata.txt
+  log type:  text
+ closed on:  15 Dec 2025, 15:08:06
+----------------------------------------------------------------------------------------------------------------------------------------
