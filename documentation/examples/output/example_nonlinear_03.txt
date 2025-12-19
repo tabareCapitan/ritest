@@ -1,0 +1,60 @@
+Example: Count outcome — Poisson (GLM Poisson)
+==============================================
+
+Setup
+-----
+n = 100
+reps = 500
+seed = 10003
+permuted variable: z
+runtime (seconds): 2.771
+
+Model and statistic
+-------------------
+Use case: treatment -> event counts (visits, clicks, defects).
+Fit Poisson GLM; RI statistic is the treatment coefficient.
+
+Statistic used in RI:
+  coefficient on z from the model fit on (y ~ z + x)
+
+Observed (model-based) estimate on the original data
+----------------------------------------------------
+bhat_z: 0.363557
+se_z:   0.161218
+p_z:    0.024129
+
+Randomization inference result (ritest)
+--------------------------------------
+Randomization Inference Result
+===============================
+
+Coefficient
+-----------
+Observed effect (β̂):   0.3636
+Coefficient CI bounds: not computed
+Coefficient CI band:   not computed
+
+Permutation test
+----------------
+Tail (alternative):     two-sided
+p-value:                0.0200 (2.0%)
+P-value CI @ α=0.050: [0.0096, 0.0365]
+As-or-more extreme:     10 / 500
+
+Test configuration
+------------------
+Stratified:             no
+Clustered:              no
+Weights:                no
+
+Settings
+--------
+alpha:                  0.050
+seed:                   10003
+ci_method:              cp
+ci_mode:                none
+n_jobs:                 4
+
+Interpretation
+--------------
+Under the sharp null of no effect for any unit, 2.0% of randomized assignments produced a statistic as or more extreme in either direction than observed. At α = 0.050, the result is **statistically significant** for a two-sided test. This p-value is finite-sample and design-based from permutation/randomization inference.

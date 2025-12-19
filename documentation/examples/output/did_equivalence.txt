@@ -1,0 +1,106 @@
+Two-period DiD equivalence demo
+===============================
+
+A) Standard DiD regression (panel): y ~ D + post + D:post + x
+------------------------------------------------------------
+                            OLS Regression Results
+==============================================================================
+Dep. Variable:                      y   R-squared:                       0.750
+Model:                            OLS   Adj. R-squared:                  0.750
+Method:                 Least Squares   F-statistic:                     1496.
+Date:                Thu, 18 Dec 2025   Prob (F-statistic):               0.00
+Time:                        20:03:42   Log-Likelihood:                -3563.8
+No. Observations:                2000   AIC:                             7138.
+Df Residuals:                    1995   BIC:                             7166.
+Df Model:                           4
+Covariance Type:            nonrobust
+==============================================================================
+                 coef    std err          t      P>|t|      [0.025      0.975]
+------------------------------------------------------------------------------
+Intercept      1.0802      0.063     17.154      0.000       0.957       1.204
+D              0.1801      0.091      1.975      0.048       0.001       0.359
+post           0.1079      0.089      1.209      0.227      -0.067       0.283
+D:post         2.2328      0.129     17.310      0.000       1.980       2.486
+x              1.4895      0.022     66.857      0.000       1.446       1.533
+==============================================================================
+Omnibus:                        0.124   Durbin-Watson:                   1.453
+Prob(Omnibus):                  0.940   Jarque-Bera (JB):                0.147
+Skew:                          -0.018   Prob(JB):                        0.929
+Kurtosis:                       2.979   Cond. No.                         7.91
+==============================================================================
+
+Notes:
+[1] Standard Errors assume that the covariance matrix of the errors is correctly specified.
+
+DiD effect (interaction coefficient)  D:post = 2.2327615094
+
+B) Change-score regression (one row per unit): dy ~ D + dx
+----------------------------------------------------------
+                            OLS Regression Results
+==============================================================================
+Dep. Variable:                     dy   R-squared:                       0.753
+Model:                            OLS   Adj. R-squared:                  0.752
+Method:                 Least Squares   F-statistic:                     1519.
+Date:                Thu, 18 Dec 2025   Prob (F-statistic):          2.08e-303
+Time:                        20:03:42   Log-Likelihood:                -1759.8
+No. Observations:                1000   AIC:                             3526.
+Df Residuals:                     997   BIC:                             3540.
+Df Model:                           2
+Covariance Type:            nonrobust
+==============================================================================
+                 coef    std err          t      P>|t|      [0.025      0.975]
+------------------------------------------------------------------------------
+Intercept      0.0987      0.062      1.583      0.114      -0.024       0.221
+D              2.2253      0.089     24.865      0.000       2.050       2.401
+dx             1.5208      0.032     46.869      0.000       1.457       1.585
+==============================================================================
+Omnibus:                        0.291   Durbin-Watson:                   2.036
+Prob(Omnibus):                  0.865   Jarque-Bera (JB):                0.189
+Skew:                          -0.004   Prob(JB):                        0.910
+Kurtosis:                       3.067   Cond. No.                         3.43
+==============================================================================
+
+Notes:
+[1] Standard Errors assume that the covariance matrix of the errors is correctly specified.
+
+DiD effect (coefficient on D)         D      = 2.2253078656
+Absolute difference |D:post - D|             = 7.454e-03
+
+C) ritest on the fast linear path (change-score form)
+-----------------------------------------------------
+ritest call used:
+  ritest(df_diff, permute_var='D', formula='dy ~ D + dx', stat='D', reps=2000, seed=123)
+
+Randomization Inference Result
+===============================
+
+Coefficient
+-----------
+Observed effect (β̂):   2.2253
+Coefficient CI bounds: not computed
+Coefficient CI band:   not computed
+
+Permutation test
+----------------
+Tail (alternative):     two-sided
+p-value:                0.0000 (0.0%)
+P-value CI @ α=0.050: [0.0000, 0.0018]
+As-or-more extreme:     0 / 2000
+
+Test configuration
+------------------
+Stratified:             no
+Clustered:              no
+Weights:                no
+
+Settings
+--------
+alpha:                  0.050
+seed:                   123
+ci_method:              cp
+ci_mode:                none
+n_jobs:                 4
+
+Interpretation
+--------------
+Under the sharp null of no effect for any unit, 0.0% of randomized assignments produced a statistic as or more extreme in either direction than observed. At α = 0.050, the result is **statistically significant** for a two-sided test. This p-value is finite-sample and design-based from permutation/randomization inference.

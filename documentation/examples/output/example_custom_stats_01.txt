@@ -1,0 +1,57 @@
+Example: Custom stat — Median difference
+========================================
+
+Setup
+-----
+n = 100
+reps = 500
+seed = 20001
+permuted variable: z
+alternative: two-sided
+runtime (seconds): 0.175
+
+Statistic
+---------
+Median(y | z=1) - Median(y | z=0).
+
+Use when you care about typical outcomes but want robustness to outliers.
+
+Observed statistic (original data)
+--------------------------------
+stat_obs: 0.331038
+
+Randomization inference result (ritest)
+--------------------------------------
+Randomization Inference Result
+===============================
+
+Coefficient
+-----------
+Observed effect (β̂):   0.3310
+Coefficient CI bounds: not computed
+Coefficient CI band:   not computed
+
+Permutation test
+----------------
+Tail (alternative):     two-sided
+p-value:                0.2440 (24.4%)
+P-value CI @ α=0.050: [0.2070, 0.2841]
+As-or-more extreme:     122 / 500
+
+Test configuration
+------------------
+Stratified:             no
+Clustered:              no
+Weights:                no
+
+Settings
+--------
+alpha:                  0.050
+seed:                   20001
+ci_method:              cp
+ci_mode:                none
+n_jobs:                 4
+
+Interpretation
+--------------
+Under the sharp null of no effect for any unit, 24.4% of randomized assignments produced a statistic as or more extreme in either direction than observed. At α = 0.050, the result is **not statistically significant** for a two-sided test. This p-value is finite-sample and design-based from permutation/randomization inference.

@@ -1,0 +1,83 @@
+Option 2: Keep Treatment B in estimation, fix B in re-randomization
+==================================================================
+
+Estimation sample: all units (treatment in {0,1,2})
+Regression includes B indicator so B is not pooled into Control
+Re-randomization: permute A labels only among units with treatment in {0,1}
+
+A) OLS on the full sample
+-------------------------
+                            OLS Regression Results
+==============================================================================
+Dep. Variable:                      y   R-squared:                       0.694
+Model:                            OLS   Adj. R-squared:                  0.693
+Method:                 Least Squares   F-statistic:                     565.1
+Date:                Fri, 19 Dec 2025   Prob (F-statistic):          2.67e-254
+Time:                        09:42:49   Log-Likelihood:                -1424.6
+No. Observations:                1000   AIC:                             2859.
+Df Residuals:                     995   BIC:                             2884.
+Df Model:                           4
+Covariance Type:            nonrobust
+==============================================================================
+                 coef    std err          t      P>|t|      [0.025      0.975]
+------------------------------------------------------------------------------
+Intercept      0.9871      0.057     17.424      0.000       0.876       1.098
+A              0.8839      0.079     11.137      0.000       0.728       1.040
+B              0.2163      0.083      2.619      0.009       0.054       0.378
+x1             1.1692      0.031     37.773      0.000       1.108       1.230
+x2            -0.7286      0.032    -22.427      0.000      -0.792      -0.665
+==============================================================================
+Omnibus:                        0.229   Durbin-Watson:                   2.030
+Prob(Omnibus):                  0.892   Jarque-Bera (JB):                0.242
+Skew:                          -0.037   Prob(JB):                        0.886
+Kurtosis:                       2.980   Cond. No.                         4.06
+==============================================================================
+
+Notes:
+[1] Standard Errors assume that the covariance matrix of the errors is correctly specified.
+
+Observed coefficient on A: 0.883853
+
+B) Randomization inference (ritest)
+----------------------------------
+ritest call used (conceptually):
+  ritest(df, permute_var='A', permutations=perms, formula='y ~ 1 + A + B + x1 + x2', stat='A', reps=2000, seed=123)
+
+Notes on permutations used:
+- perms is a (reps x n) matrix of A assignments
+- entries for B units are always 0 (B is fixed)
+- within {Control, A}, the number of A units is preserved each draw
+
+Randomization Inference Result
+===============================
+
+Coefficient
+-----------
+Observed effect (β̂):   0.8839
+Coefficient CI bounds: not computed
+Coefficient CI band:   not computed
+
+Permutation test
+----------------
+Tail (alternative):     two-sided
+p-value:                0.0000 (0.0%)
+P-value CI @ α=0.050: [0.0000, 0.0018]
+As-or-more extreme:     0 / 2000
+
+Test configuration
+------------------
+Stratified:             no
+Clustered:              no
+Weights:                no
+
+Settings
+--------
+alpha:                  0.050
+seed:                   123
+ci_method:              cp
+ci_mode:                none
+n_jobs:                 4
+
+Interpretation
+--------------
+Under the sharp null of no effect for any unit, 0.0% of randomized assignments produced a statistic as or more extreme in either direction than observed. At α = 0.050, the result is **statistically significant** for a two-sided test. This p-value is finite-sample and design-based from permutation/randomization inference.

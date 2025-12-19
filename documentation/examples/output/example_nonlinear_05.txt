@@ -1,0 +1,60 @@
+Example: Fractional outcome — Fractional logit (quasi-binomial GLM)
+===================================================================
+
+Setup
+-----
+n = 100
+reps = 500
+seed = 10005
+permuted variable: z
+runtime (seconds): 2.551
+
+Model and statistic
+-------------------
+Use case: proportions in [0,1] not coming from binomial counts (e.g., budget shares).
+Fit binomial GLM with logit link (quasi-likelihood); RI statistic is the treatment coefficient.
+
+Statistic used in RI:
+  coefficient on z from the model fit on (y ~ z + x)
+
+Observed (model-based) estimate on the original data
+----------------------------------------------------
+bhat_z: 0.533403
+se_z:   0.419660
+p_z:    0.203716
+
+Randomization inference result (ritest)
+--------------------------------------
+Randomization Inference Result
+===============================
+
+Coefficient
+-----------
+Observed effect (β̂):   0.5334
+Coefficient CI bounds: not computed
+Coefficient CI band:   not computed
+
+Permutation test
+----------------
+Tail (alternative):     two-sided
+p-value:                0.0000 (0.0%)
+P-value CI @ α=0.050: [0.0000, 0.0074]
+As-or-more extreme:     0 / 500
+
+Test configuration
+------------------
+Stratified:             no
+Clustered:              no
+Weights:                no
+
+Settings
+--------
+alpha:                  0.050
+seed:                   10005
+ci_method:              cp
+ci_mode:                none
+n_jobs:                 4
+
+Interpretation
+--------------
+Under the sharp null of no effect for any unit, 0.0% of randomized assignments produced a statistic as or more extreme in either direction than observed. At α = 0.050, the result is **statistically significant** for a two-sided test. This p-value is finite-sample and design-based from permutation/randomization inference.

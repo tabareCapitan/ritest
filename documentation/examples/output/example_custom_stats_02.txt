@@ -1,0 +1,57 @@
+Example: Custom stat — 10% trimmed mean difference
+==================================================
+
+Setup
+-----
+n = 100
+reps = 500
+seed = 20002
+permuted variable: z
+alternative: two-sided
+runtime (seconds): 0.135
+
+Statistic
+---------
+TrimmedMean_10%(y | z=1) - TrimmedMean_10%(y | z=0).
+
+Use when you want a mean-like estimand but with reduced sensitivity to tails.
+
+Observed statistic (original data)
+--------------------------------
+stat_obs: 0.498458
+
+Randomization inference result (ritest)
+--------------------------------------
+Randomization Inference Result
+===============================
+
+Coefficient
+-----------
+Observed effect (β̂):   0.4985
+Coefficient CI bounds: not computed
+Coefficient CI band:   not computed
+
+Permutation test
+----------------
+Tail (alternative):     two-sided
+p-value:                0.0400 (4.0%)
+P-value CI @ α=0.050: [0.0246, 0.0611]
+As-or-more extreme:     20 / 500
+
+Test configuration
+------------------
+Stratified:             no
+Clustered:              no
+Weights:                no
+
+Settings
+--------
+alpha:                  0.050
+seed:                   20002
+ci_method:              cp
+ci_mode:                none
+n_jobs:                 4
+
+Interpretation
+--------------
+Under the sharp null of no effect for any unit, 4.0% of randomized assignments produced a statistic as or more extreme in either direction than observed. At α = 0.050, the result is **statistically significant** for a two-sided test. This p-value is finite-sample and design-based from permutation/randomization inference.

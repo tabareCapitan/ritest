@@ -1,0 +1,62 @@
+Example: Custom stat — Kolmogorov–Smirnov (KS) statistic
+========================================================
+
+Setup
+-----
+n = 100
+reps = 500
+seed = 20005
+permuted variable: z
+alternative: right
+runtime (seconds): 0.462
+
+Statistic
+---------
+Two-sample KS statistic D (>=0): the maximum gap between empirical CDFs.
+
+This is a pure distributional difference statistic. Large values are evidence
+against the sharp null, so a right-tailed RI is natural.
+
+Observed statistic (original data)
+--------------------------------
+stat_obs: 0.220000
+
+Model-based / asymptotic comparison (optional)
+--------------------------------------------
+KS p-value (asymptotic): 0.178587
+
+Randomization inference result (ritest)
+--------------------------------------
+Randomization Inference Result
+===============================
+
+Coefficient
+-----------
+Observed effect (β̂):   0.2200
+Coefficient CI bounds: not computed
+Coefficient CI band:   not computed
+
+Permutation test
+----------------
+Tail (alternative):     right
+p-value:                0.1780 (17.8%)
+P-value CI @ α=0.050: [0.1455, 0.2144]
+As-or-more extreme:     89 / 500
+
+Test configuration
+------------------
+Stratified:             no
+Clustered:              no
+Weights:                no
+
+Settings
+--------
+alpha:                  0.050
+seed:                   20005
+ci_method:              cp
+ci_mode:                none
+n_jobs:                 4
+
+Interpretation
+--------------
+Under the sharp null of no effect for any unit, 17.8% of randomized assignments produced a statistic as or more extreme in the positive direction than observed. At α = 0.050, the result is **not statistically significant** for a right test. This p-value is finite-sample and design-based from permutation/randomization inference.

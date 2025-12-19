@@ -4,18 +4,23 @@ repos:
     hooks:
       - id: ruff
         args: [--fix]
-        exclude: ^benchmarks/output/|^benchmarks/*.do
+        files: \.pyi?$
+        exclude: ^documentation/benchmarks/.*/output/|\.do$
       - id: ruff-format
-        exclude: ^benchmarks/output/|^benchmarks/*.do
+        files: \.pyi?$
+        exclude: ^documentation/benchmarks/.*/output/|\.do$
+
   - repo: https://github.com/psf/black
     rev: 24.8.0
     hooks:
       - id: black
-        exclude: ^benchmarks/output/
+        files: \.pyi?$
+        exclude: ^documentation/benchmarks/.*/output/|\.do$
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
       - id: end-of-file-fixer
-        exclude: ^benchmarks/output/|^benchmarks/*.do
+        exclude: ^documentation/benchmarks/.*/output/|\.do$
       - id: trailing-whitespace
-        exclude: ^benchmarks/output/|^benchmarks/*.do
+        exclude: ^documentation/benchmarks/.*/output/|\.do$

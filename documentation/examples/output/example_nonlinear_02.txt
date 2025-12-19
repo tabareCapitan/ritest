@@ -1,0 +1,60 @@
+Example: Binary outcome — Probit (GLM binomial, probit link)
+============================================================
+
+Setup
+-----
+n = 100
+reps = 500
+seed = 10002
+permuted variable: z
+runtime (seconds): 4.176
+
+Model and statistic
+-------------------
+Same data as the logit example, but the model uses a probit link.
+RI statistic is still the treatment coefficient.
+
+Statistic used in RI:
+  coefficient on z from the model fit on (y ~ z + x)
+
+Observed (model-based) estimate on the original data
+----------------------------------------------------
+bhat_z: 0.586543
+se_z:   0.257741
+p_z:    0.022863
+
+Randomization inference result (ritest)
+--------------------------------------
+Randomization Inference Result
+===============================
+
+Coefficient
+-----------
+Observed effect (β̂):   0.5865
+Coefficient CI bounds: not computed
+Coefficient CI band:   not computed
+
+Permutation test
+----------------
+Tail (alternative):     two-sided
+p-value:                0.0320 (3.2%)
+P-value CI @ α=0.050: [0.0184, 0.0514]
+As-or-more extreme:     16 / 500
+
+Test configuration
+------------------
+Stratified:             no
+Clustered:              no
+Weights:                no
+
+Settings
+--------
+alpha:                  0.050
+seed:                   10002
+ci_method:              cp
+ci_mode:                none
+n_jobs:                 4
+
+Interpretation
+--------------
+Under the sharp null of no effect for any unit, 3.2% of randomized assignments produced a statistic as or more extreme in either direction than observed. At α = 0.050, the result is **statistically significant** for a two-sided test. This p-value is finite-sample and design-based from permutation/randomization inference.

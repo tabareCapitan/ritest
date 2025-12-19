@@ -1,0 +1,71 @@
+Example: Working with RitestResult
+==================================
+
+A) Quick object display
+------------------------
+repr(res): RitestResult(obs=0.9554, p=0.0000, alt='two-sided', reps=1000)
+str(res):  RI: p=0.0000 (two-sided), reps=1000, β̂=0.9554
+
+B) Full summary() output
+------------------------
+Randomization Inference Result
+===============================
+
+Coefficient
+-----------
+Observed effect (β̂):   0.9554
+Coefficient CI bounds: [0.8292, 1.0784]
+Coefficient CI band:   not computed
+
+Permutation test
+----------------
+Tail (alternative):     two-sided
+p-value:                0.0000 (0.0%)
+P-value CI @ α=0.050: [0.0000, 0.0037]
+As-or-more extreme:     0 / 1000
+
+Test configuration
+------------------
+Stratified:             no
+Clustered:              no
+Weights:                no
+
+Settings
+--------
+alpha:                  0.050
+seed:                   23
+ci_method:              cp
+ci_mode:                bounds
+n_jobs:                 4
+
+Interpretation
+--------------
+Under the sharp null of no effect for any unit, 0.0% of randomized assignments produced a statistic as or more extreme in either direction than observed. At α = 0.050, the result is **statistically significant** for a two-sided test. This p-value is finite-sample and design-based from permutation/randomization inference.
+
+C) Plain-language explain() output
+----------------------------------
+Under the sharp null of no effect for any unit, 0.0% of randomized assignments produced a statistic as or more extreme in either direction than observed. At α = 0.050, the result is **statistically significant** for a two-sided test. This p-value is finite-sample and design-based from permutation/randomization inference.
+
+D) Extracting specific fields into variables
+----------------------------------------------
+Observed coefficient (bhat): 0.9554355281623486
+RI p-value (p_ri):          0.0
+P-value CI (p_ci):          (0.0, 0.003682083896865671)
+Coef CI bounds (b_ci):      (0.8291793138906594, 1.0783692104795206)
+
+E) Working with the coefficient CI band (beta_grid, pvals)
+--------------------------------------------------------------
+coef_ci_band is None (band not computed)
+
+F) Settings snapshot stored on the result
+------------------------------------------
+alpha: 0.05
+alternative: two-sided
+ci_method: cp
+ci_mode: bounds
+ci_range: 3.0
+ci_step: 0.05
+coef_ci_generic: False
+n_jobs: 4
+reps: 1000
+seed: 23

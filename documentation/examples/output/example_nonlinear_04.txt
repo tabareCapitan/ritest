@@ -1,0 +1,61 @@
+Example: Count outcome — Negative Binomial (GLM NB, alpha fixed)
+================================================================
+
+Setup
+-----
+n = 100
+reps = 500
+seed = 10004
+permuted variable: z
+runtime (seconds): 3.467
+
+Model and statistic
+-------------------
+Use case: overdispersed counts (variance >> mean).
+Fit Negative Binomial GLM with alpha fixed at 1.0;
+RI statistic is the treatment coefficient.
+
+Statistic used in RI:
+  coefficient on z from the model fit on (y ~ z + x)
+
+Observed (model-based) estimate on the original data
+----------------------------------------------------
+bhat_z: 0.160857
+se_z:   0.244822
+p_z:    0.511156
+
+Randomization inference result (ritest)
+--------------------------------------
+Randomization Inference Result
+===============================
+
+Coefficient
+-----------
+Observed effect (β̂):   0.1609
+Coefficient CI bounds: not computed
+Coefficient CI band:   not computed
+
+Permutation test
+----------------
+Tail (alternative):     two-sided
+p-value:                0.4840 (48.4%)
+P-value CI @ α=0.050: [0.4394, 0.5288]
+As-or-more extreme:     242 / 500
+
+Test configuration
+------------------
+Stratified:             no
+Clustered:              no
+Weights:                no
+
+Settings
+--------
+alpha:                  0.050
+seed:                   10004
+ci_method:              cp
+ci_mode:                none
+n_jobs:                 4
+
+Interpretation
+--------------
+Under the sharp null of no effect for any unit, 48.4% of randomized assignments produced a statistic as or more extreme in either direction than observed. At α = 0.050, the result is **not statistically significant** for a two-sided test. This p-value is finite-sample and design-based from permutation/randomization inference.
