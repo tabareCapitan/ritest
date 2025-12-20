@@ -45,7 +45,6 @@ def ritest(
     alpha: Optional[float] = None,
     ci_method: Optional[CiMethod] = None,
     ci_mode: Optional[CiMode] = None,
-    coef_ci_generic: Optional[bool] = None,
     # infra
     n_jobs: Optional[int] = None,
     seed: Optional[int] = None,
@@ -88,7 +87,6 @@ def ritest(
         alpha=alpha,
         ci_method=ci_method,
         ci_mode=ci_mode,
-        coef_ci_generic=coef_ci_generic,
         n_jobs=n_jobs,
         seed=seed,
         weights=weights,

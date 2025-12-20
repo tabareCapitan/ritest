@@ -46,13 +46,6 @@ DEFAULTS: Dict[str, Any] = {
     # 'bounds' : compute only the 2-point coefficient CI
     # 'grid'   : compute the full (β, p(β)) band (and bounds)
     "ci_mode": "bounds",
-    # Applies ONLY when using a generic stat function (`stat_fn`).
-    # - If True  and ci_mode in {'bounds','grid'}: compute generic coef CI
-    #   (grid allowed but potentially slow; a runtime warning may be shown).
-    # - If False and using stat_fn: skip coefficient CI even if ci_mode != 'none'.
-    # Ignored for fast-linear (formula) models, where fast CIs are always available
-    # unless ci_mode == 'none'.
-    "coef_ci_generic": False,
     # Search/grid sizing for coefficient CI (interpreted in SE units)
     "ci_range": 3.0,  # search half-range in SE units
     "ci_step": 0.005,  # grid step in SE units (used when ci_mode == 'grid')
@@ -117,10 +110,6 @@ def _validate_pair(key: str, val: Any) -> None:
     elif key in {"ci_range", "ci_step", "ci_tol"}:
         if not isinstance(val, (int, float)) or val <= 0:
             raise ValueError(f"{key} must be a positive number (got {val!r})")
-
-    elif key == "coef_ci_generic":
-        if not isinstance(val, bool):
-            raise ValueError("coef_ci_generic must be True/False")
 
     elif key == "n_jobs":
         if not isinstance(val, int):

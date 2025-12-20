@@ -116,9 +116,7 @@ class RitestResult:
     coef_ci_band: Optional[Tuple[np.ndarray, np.ndarray]] = (
         None  # (beta_grid, pvals) or None
     )
-    band_valid_linear: bool = (
-        False  # True if fast-linear path; False if generic (when band exists)
-    )
+    band_valid_linear: bool = False  # True when band comes from linear path
 
     # Full permutation stats (optional, for diagnostics)
     perm_stats: Optional[np.ndarray] = None
@@ -221,8 +219,7 @@ class RitestResult:
 
         # Band status
         if self.coef_ci_band is not None:
-            band_kind = "fast-linear" if self.band_valid_linear else "generic"
-            lines.append(f"Coefficient CI band:   available ({band_kind})")
+            lines.append("Coefficient CI band:   available (fast-linear)")
         else:
             lines.append("Coefficient CI band:   not computed")
 
@@ -358,7 +355,7 @@ class RitestResult:
         # Cosmetics
         ax.set_xlabel("β")
         ax.set_ylabel("Permutation p-value")
-        band_kind = "fast-linear" if self.band_valid_linear else "generic"
+        band_kind = "fast-linear" if self.band_valid_linear else "unknown"
         ax.set_title(f"Coefficient CI band — {band_kind}")
         ax.set_ylim(0.0, 1.0)
         if np.all(np.isfinite(beta_grid)):

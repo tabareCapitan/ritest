@@ -1,22 +1,15 @@
 """
 Coefficient CI utilities for permutation-based inference.
 
-Two pathways are supported:
-
-1. Fast path (OLS/WLS models):
-   Uses the identity β̂ = cᵀy and precomputed permutation quantities. All
-   evaluations for candidate β₀ values reduce to vectorised arithmetic.
-
-2. Generic path (stat_fn models):
-   For non-linear or arbitrary estimators, the user supplies a runner
-   that recomputes the permutation p-value for each β₀.
-
-These functions return either the full (β₀, p-value) curve or CI bounds.
+Supports the fast path for linear OLS/WLS models via precomputed
+permutation quantities. Evaluations for candidate β₀ values reduce to
+vectorised arithmetic to produce either the full (β₀, p-value) curve or
+CI bounds.
 """
 
 from __future__ import annotations
 
-from typing import Callable, Literal, Tuple
+from typing import Literal, Tuple
 
 import numpy as np
 
@@ -189,75 +182,6 @@ def coef_ci_bounds_fast(
 
     inside = pvals >= float(alpha)
     idx = np.nonzero(inside)[0]
-    if idx.size == 0:
-        return (float("nan"), float("nan"))
-
-    if alternative == "two-sided":
-        return (float(grid[idx[0]]), float(grid[idx[-1]]))
-    elif alternative == "right":
-        return (float(grid[idx[0]]), float("inf"))
-    else:  # "left"
-        return (float("-inf"), float(grid[idx[-1]]))
-
-
-# ------------------------------------------------------------------ #
-# 3) GENERIC bounds: stat_fn fallback
-# ------------------------------------------------------------------ #
-def coef_ci_bounds_generic(
-    beta_obs: float,
-    runner: Callable[[float], float],
-    *,
-    alpha: float,
-    ci_range: float,
-    ci_step: float,
-    se: float,
-    alternative: Alt = "two-sided",
-) -> Tuple[float, float]:
-    """
-    Slow, model-agnostic CI built by re-evaluating p(β₀) for each grid point.
-
-    Parameters
-    ----------
-    beta_obs : float
-        Observed treatment coefficient; centers the grid.
-    runner : callable
-        Function ``runner(beta0)`` returning a permutation p-value.
-    alpha : float
-        Threshold for p(β₀); bounds are the extreme β₀ where p >= alpha.
-    ci_range : float
-        Half-width of the grid, in SE units.
-    ci_step : float
-        Spacing of the grid, in SE units.
-    se : float
-        Standard error used to size the grid in SE units.
-    alternative : {"two-sided", "left", "right"}
-        Which tail to use for the p-value definition.
-
-    Notes
-    -----
-    - Used when the estimator is not linear in the sufficient statistic.
-    - Makes no assumptions about structure; cost grows with grid size.
-
-    Returns
-    -------
-    (lo, hi) : tuple of float
-        Finite bounds when available; ±∞ on the open side for one-sided tests;
-        (nan, nan) if no grid points satisfy the threshold.
-    """
-    if not (se > 0.0 and ci_range > 0.0 and ci_step > 0.0):
-        raise ValueError("se, ci_range, and ci_step must be positive")
-    if not (0.0 < float(alpha) < 1.0):
-        raise ValueError("alpha must be in (0, 1)")
-
-    grid = (
-        np.arange(-ci_range * se, ci_range * se + 1e-12, ci_step * se, dtype=np.float64)
-        + beta_obs
-    )
-    pvals = np.array([runner(b0) for b0 in grid], dtype=np.float64)
-
-    inside = pvals >= float(alpha)
-    idx = np.where(inside)[0]
-
     if idx.size == 0:
         return (float("nan"), float("nan"))
 

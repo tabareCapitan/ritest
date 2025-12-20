@@ -9,7 +9,6 @@
 # - alpha in (0,1), reps > 0
 # - ci_method / ci_mode allowed sets
 # - ci_range / ci_step / ci_tol positivity
-# - coef_ci_generic bool
 # - NEW: perm_chunk_bytes / perm_chunk_min_rows shape, types, validation
 # - ritest_reset (all and subset) and identity preservation
 # - ritest_config context manager (normal and exception paths, nesting)
@@ -37,7 +36,6 @@ def test_defaults_shape_and_types():
         "alpha",
         "ci_method",
         "ci_mode",
-        "coef_ci_generic",
         "ci_range",
         "ci_step",
         "ci_tol",
@@ -54,7 +52,6 @@ def test_defaults_shape_and_types():
     assert isinstance(d["alpha"], float) and 0 < d["alpha"] < 1
     assert d["ci_method"] in {"cp", "normal"}
     assert d["ci_mode"] in {"bounds", "grid", "none"}
-    assert isinstance(d["coef_ci_generic"], bool)
     assert isinstance(d["ci_range"], float) and d["ci_range"] > 0
     assert isinstance(d["ci_step"], float) and d["ci_step"] > 0
     assert isinstance(d["ci_tol"], float) and d["ci_tol"] > 0
@@ -189,19 +186,6 @@ def test_ci_numeric_positive_validation(key, bad_value):
         ritest_set({key: bad_value})
 
 
-@pytest.mark.parametrize(
-    "overrides",
-    [
-        {"coef_ci_generic": "true"},
-        {"coef_ci_generic": 1},
-        {"coef_ci_generic": None},
-    ],
-)
-def test_coef_ci_generic_bool_validation(overrides):
-    with pytest.raises(ValueError):
-        ritest_set(overrides)
-
-
 def test_n_jobs_validation_strict():
     # Allowed
     ritest_set({"n_jobs": -1})
@@ -269,7 +253,6 @@ def test_reset_all_restores_import_time_defaults_and_identity():
             "reps": 777,
             "ci_method": "normal",
             "ci_mode": "grid",
-            "coef_ci_generic": True,
             "ci_range": 4.0,
             "ci_step": 0.01,
             "ci_tol": 1e-5,

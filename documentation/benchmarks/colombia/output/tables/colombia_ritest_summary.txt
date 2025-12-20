@@ -31,4 +31,4 @@ n_jobs:                 4
 Interpretation
 --------------
 Under the sharp null of no effect for any unit, 10.3% of randomized assignments produced a statistic as or more extreme in either direction than observed. At α = 0.050, the result is **not statistically significant** for a two-sided test. This p-value is finite-sample and design-based from permutation/randomization inference.
-Runtime (seconds): 58.205
+Runtime (seconds): 50.596

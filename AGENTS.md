@@ -3,6 +3,7 @@
 This repository uses AI coding assistants (so far Codex) to:
 - Propose refactors or docstrings.
 - Suggest tests or example code.
+- Speed up writing documentation.
 - Help with boilerplate (CI, packaging files, etc.).
 - Others.
 
@@ -26,4 +27,4 @@ This repository uses AI coding assistants (so far Codex) to:
 - Always:
   - Run tests after applying AI suggestions.
   - Edit wording so that docstrings and comments read like human-written,
-    domain-aware code (no “AI-speak”).
+    domain-aware code (no “AI-speak”). Readability is paramount.

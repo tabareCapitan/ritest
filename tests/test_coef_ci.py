@@ -1,14 +1,8 @@
-from typing import cast
-
 import numpy as np
 import pytest
 
-from ritest.ci.coef_ci import (
-    Alt,  # Literal["two-sided","left","right"]
-    coef_ci_band_fast,
-    coef_ci_bounds_fast,
-    coef_ci_bounds_generic,
-)
+from ritest.ci.coef_ci import Alt  # Literal["two-sided","left","right"]
+from ritest.ci.coef_ci import coef_ci_band_fast, coef_ci_bounds_fast
 from ritest.engine.fast_ols import FastOLS
 
 
@@ -53,119 +47,8 @@ def make_linear_fixture(n=300, beta_true=1.5, gamma=0.6, alpha0=0.7, seed=42):
     return (y, X, treat_idx, beta_obs, se_obs, beta_perm, K_obs, K_perm, beta_true)
 
 
-def runner_from_arrays(
-    beta_obs: float,
-    beta_perm: np.ndarray,
-    K_obs: float,
-    K_perm: np.ndarray,
-    alternative: Alt,
-):
-    """
-    Build a generic-runner closure that replicates the fast comparator exactly.
-    """
-    beta_perm = np.asarray(beta_perm, dtype=float)
-    K_perm = np.asarray(K_perm, dtype=float)
-
-    def _runner(beta0: float) -> float:
-        crit = beta_obs - K_obs * beta0
-        dist = beta_perm - K_perm * beta0
-        if alternative == "two-sided":
-            return (np.abs(dist) >= abs(crit)).mean()
-        elif alternative == "right":
-            return (dist >= crit).mean()
-        # alternative == "left"
-        return (dist <= crit).mean()
-
-    return _runner
-
-
 # ---------------------------------------------------------------------
-# 1) Fast vs Generic parity (two-sided)
-# ---------------------------------------------------------------------
-@pytest.mark.parametrize("alpha", [0.05, 0.10])
-def test_parity_two_sided(alpha: float):
-    (_y, _X, _treat_idx, beta_obs, se_obs, beta_perm, K_obs, K_perm, _beta_true) = (
-        make_linear_fixture()
-    )
-
-    ci_range = 3.0
-    ci_step = 0.01
-    alt: Alt = "two-sided"
-
-    lo_fast, hi_fast = coef_ci_bounds_fast(
-        beta_obs=beta_obs,
-        beta_perm=beta_perm,
-        K_obs=K_obs,
-        K_perm=K_perm,
-        se=se_obs,
-        alpha=alpha,
-        ci_range=ci_range,
-        ci_step=ci_step,
-        alternative=alt,
-    )
-
-    runner = runner_from_arrays(beta_obs, beta_perm, K_obs, K_perm, alt)
-    lo_gen, hi_gen = coef_ci_bounds_generic(
-        beta_obs,
-        runner=runner,
-        alpha=alpha,
-        ci_range=ci_range,
-        ci_step=ci_step,
-        se=se_obs,
-        alternative=alt,
-    )
-
-    tol = ci_step * se_obs + 1e-12
-    assert abs(lo_fast - lo_gen) <= tol
-    assert abs(hi_fast - hi_gen) <= tol
-
-
-# ---------------------------------------------------------------------
-# 2) Fast vs Generic parity (one-sided)
-# ---------------------------------------------------------------------
-@pytest.mark.parametrize("alternative", ["right", "left"])
-def test_parity_one_sided(alternative: str):
-    alt: Alt = cast(Alt, alternative)  # silence type checker
-    (_y, _X, _treat_idx, beta_obs, se_obs, beta_perm, K_obs, K_perm, _beta_true) = (
-        make_linear_fixture()
-    )
-
-    ci_range = 3.0
-    ci_step = 0.01
-    alpha = 0.05
-
-    lo_fast, hi_fast = coef_ci_bounds_fast(
-        beta_obs=beta_obs,
-        beta_perm=beta_perm,
-        K_obs=K_obs,
-        K_perm=K_perm,
-        se=se_obs,
-        alpha=alpha,
-        ci_range=ci_range,
-        ci_step=ci_step,
-        alternative=alt,
-    )
-
-    runner = runner_from_arrays(beta_obs, beta_perm, K_obs, K_perm, alt)
-    lo_gen, hi_gen = coef_ci_bounds_generic(
-        beta_obs,
-        runner=runner,
-        alpha=alpha,
-        ci_range=ci_range,
-        ci_step=ci_step,
-        se=se_obs,
-        alternative=alt,
-    )
-
-    tol = ci_step * se_obs + 1e-12
-    if np.isfinite(lo_fast) and np.isfinite(lo_gen):
-        assert abs(lo_fast - lo_gen) <= tol
-    if np.isfinite(hi_fast) and np.isfinite(hi_gen):
-        assert abs(hi_fast - hi_gen) <= tol
-
-
-# ---------------------------------------------------------------------
-# 3) Regression: one-sided bands are NOT flat when K_perm varies
+# 1) Regression: one-sided bands are NOT flat when K_perm varies
 # ---------------------------------------------------------------------
 def test_one_sided_band_not_flat():
     (_y, _X, _treat_idx, beta_obs, se_obs, beta_perm, K_obs, K_perm, _beta_true) = (
@@ -187,7 +70,7 @@ def test_one_sided_band_not_flat():
 
 
 # ---------------------------------------------------------------------
-# 4) Alpha monotonicity + "makes sense" check
+# 2) Alpha monotonicity + "makes sense" check
 # ---------------------------------------------------------------------
 def test_alpha_monotonicity_and_makes_sense():
     (_y, _X, _treat_idx, beta_obs, se_obs, beta_perm, K_obs, K_perm, _beta_true) = (
@@ -256,7 +139,7 @@ def test_alpha_monotonicity_and_makes_sense():
 
 
 # ---------------------------------------------------------------------
-# 5) Grid resolution sensitivity
+# 3) Grid resolution sensitivity
 # ---------------------------------------------------------------------
 def test_grid_resolution_sensitivity():
     (_y, _X, _treat_idx, beta_obs, se_obs, beta_perm, K_obs, K_perm, _beta_true) = (
@@ -296,7 +179,7 @@ def test_grid_resolution_sensitivity():
 
 
 # ---------------------------------------------------------------------
-# 6) Identifiability edge: K_obs == 0 and K_perm == 0 ⇒ constant band
+# 4) Identifiability edge: K_obs == 0 and K_perm == 0 ⇒ constant band
 # ---------------------------------------------------------------------
 def test_identifiability_constant_band():
     (_y, _X, _treat_idx, beta_obs, se_obs, beta_perm, _K_obs, _K_perm, _beta_true) = (
@@ -338,7 +221,7 @@ def test_identifiability_constant_band():
 
 
 # ---------------------------------------------------------------------
-# 7) Empty acceptance region → (nan, nan)
+# 5) Empty acceptance region → (nan, nan)
 # ---------------------------------------------------------------------
 def test_empty_acceptance_region():
     (_y, _X, _treat_idx, _beta_obs, se_obs, beta_perm, _K_obs, _K_perm, _beta_true) = (
@@ -366,7 +249,7 @@ def test_empty_acceptance_region():
 
 
 # ---------------------------------------------------------------------
-# 8) Determinism
+# 6) Determinism
 # ---------------------------------------------------------------------
 def test_determinism_band_and_bounds():
     (_y, _X, _treat_idx, beta_obs, se_obs, beta_perm, K_obs, K_perm, _beta_true) = (
@@ -424,7 +307,7 @@ def test_determinism_band_and_bounds():
 
 
 # ---------------------------------------------------------------------
-# 9) Guards / invalid inputs
+# 7) Guards / invalid inputs
 # ---------------------------------------------------------------------
 def test_invalid_inputs_raise():
     beta_obs = 0.0
@@ -485,61 +368,3 @@ def test_invalid_inputs_raise():
             ci_step=0.02,
             alternative=alt,
         )
-
-
-# ---------------------------------------------------------------------
-# 10) Generic runner (no formula path) with sensible R
-# ---------------------------------------------------------------------
-def test_generic_runner_small_R():
-    rng = np.random.default_rng(123)
-    n = 200
-    T = rng.integers(0, 2, size=n)
-    x = rng.normal(size=n)
-    beta_true = 1.2
-    y = 0.1 + beta_true * T + 0.5 * x + rng.normal(size=n)
-
-    # Simple stat: difference in means (fast)
-    def diff_in_means(y_arr: np.ndarray, t_arr: np.ndarray) -> float:
-        return float(y_arr[t_arr == 1].mean() - y_arr[t_arr == 0].mean())
-
-    obs_stat = diff_in_means(y, T)
-
-    # Precompute permutations once (cheap generic runner)
-    R = 600
-    perm_stats = np.empty(R, dtype=float)
-    for r in range(R):
-        Tperm = rng.permutation(T)
-        perm_stats[r] = diff_in_means(y, Tperm)
-
-    # Runner that uses the precomputed perm_stats (no K), right-sided
-    def runner(beta0: float, alt: Alt = "right") -> float:
-        shifted = obs_stat - beta0
-        dist = perm_stats - beta0
-        if alt == "two-sided":
-            return (np.abs(dist) >= abs(shifted)).mean()
-        elif alt == "right":
-            return (dist >= shifted).mean()
-        return (dist <= shifted).mean()
-
-    alpha = 0.05
-    # Because this runner is flat in beta0 for the right tail,
-    # p_const tells us which regime we're in.
-    p_const = (perm_stats >= obs_stat).mean()
-
-    lo, hi = coef_ci_bounds_generic(
-        beta_obs=obs_stat,
-        runner=lambda b0: runner(b0, "right"),
-        alpha=alpha,
-        ci_range=10.0,  # wide grid so lower bound is discoverable when it exists
-        ci_step=0.02,
-        se=1.0,  # unused by generic
-        alternative="right",
-    )
-
-    if p_const >= alpha:
-        # Entire real line is accepted: lower bound at grid min, upper is +inf
-        assert np.isfinite(lo)
-        assert np.isinf(hi)
-    else:
-        # Empty acceptance region on our grid: both ends NaN
-        assert np.isnan(lo) and np.isnan(hi)

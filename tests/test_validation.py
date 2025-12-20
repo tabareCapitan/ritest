@@ -511,14 +511,13 @@ def test_stat_fn_runtime_warning_when_slow(monkeypatch):
     )
 
 
-def test_generic_ci_warning_added_when_ci_mode_and_coef_ci_generic_false():
+def test_generic_ci_warning_added_when_ci_mode_for_stat_fn():
     df = make_base_df()
     v = validate_inputs(
         df,
         permute_var="T",
         stat_fn=diff_in_means,
         ci_mode="grid",
-        coef_ci_generic=False,
     )
     msgs = "\n".join(v.warnings)
-    assert "coef_ci_generic=False with stat_fn" in msgs
+    assert "Coefficient CIs are only available for the linear formula/stat path" in msgs

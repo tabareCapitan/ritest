@@ -55,7 +55,6 @@ class ValidatedInputs:
     ci_range: float = 3.0
     ci_step: float = 0.005
     ci_tol: float = 1e-4
-    coef_ci_generic: bool = False
 
     # misc metadata for run.py / summary
     has_cluster: bool = False
@@ -153,7 +152,6 @@ def validate_inputs(
     ci_range: float = 3.0,
     ci_step: float = 0.005,
     ci_tol: float = 1e-4,
-    coef_ci_generic: bool = False,
 ) -> ValidatedInputs:
     """
     Validate *all* user arguments and return clean NumPy arrays.
@@ -260,11 +258,11 @@ def validate_inputs(
                 "you will permute a column not explicitly used in the model."
             )
 
-    # Heads-up for generic CI settings (actual gating happens in run.py)
-    if has_stat_fn and ci_mode != "none" and not coef_ci_generic:
+    # Heads-up: coefficient CIs are unavailable for stat_fn path
+    if has_stat_fn and ci_mode != "none":
         warnings_list.append(
-            "coef_ci_generic=False with stat_fn: coefficient CI will be skipped. "
-            "Set coef_ci_generic=True to enable generic CI (bounds or grid)."
+            "Coefficient CIs are only available for the linear formula/stat path; "
+            "ci_mode will be ignored when using stat_fn."
         )
 
     # ------------------------------------------------------------------ #
@@ -351,7 +349,6 @@ def validate_inputs(
             ci_range=ci_range,
             ci_step=ci_step,
             ci_tol=ci_tol,
-            coef_ci_generic=coef_ci_generic,
             has_cluster=cluster_codes is not None,
             has_strata=strata_codes is not None,
             warmup_time=0.0,
@@ -406,7 +403,6 @@ def validate_inputs(
             ci_range=ci_range,
             ci_step=ci_step,
             ci_tol=ci_tol,
-            coef_ci_generic=coef_ci_generic,
             has_cluster=cluster_codes_full is not None,
             has_strata=strata_codes_full is not None,
             warmup_time=dt,

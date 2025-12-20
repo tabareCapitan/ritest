@@ -15,7 +15,6 @@ public API. It coordinates:
 from __future__ import annotations
 
 import os
-import warnings
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, Dict, Optional, Tuple, cast
 
@@ -26,7 +25,6 @@ from .ci.coef_ci import (
     Alt,
     coef_ci_band_fast,
     coef_ci_bounds_fast,
-    coef_ci_bounds_generic,
 )
 from .ci.pvalue_ci import _PValCIMethod, pvalue_ci
 from .config import DEFAULTS
@@ -116,7 +114,6 @@ def ritest(  # noqa: C901
     ci_mode: str | None = None,  # "none" | "bounds" | "grid"
     ci_range: float | None = None,
     ci_step: float | None = None,
-    coef_ci_generic: bool | None = None,  # relevant only when stat_fn and grid
     n_jobs: int | None = None,
     # prebuilt permutations (matrix of permuted T labels)
     permutations: np.ndarray | None = None,
@@ -139,11 +136,6 @@ def ritest(  # noqa: C901
     ci_range = float(cfg["ci_range"]) if ci_range is None else float(ci_range)
     ci_step = float(cfg["ci_step"]) if ci_step is None else float(ci_step)
     ci_tol = float(cfg["ci_tol"])  # reserved for future use
-    coef_ci_generic = (
-        bool(cfg["coef_ci_generic"])
-        if coef_ci_generic is None
-        else bool(coef_ci_generic)
-    )
     n_jobs = _coerce_n_jobs(
         int(cfg.get("n_jobs", 1)) if n_jobs is None else int(n_jobs)
     )
@@ -170,7 +162,6 @@ def ritest(  # noqa: C901
         ci_range=ci_range,
         ci_step=ci_step,
         ci_tol=ci_tol,
-        coef_ci_generic=coef_ci_generic,
     )
 
     # 2) Observed statistic
@@ -194,16 +185,6 @@ def ritest(  # noqa: C901
         se_obs = float("nan")
         K_obs = float("nan")
         t_metric_lin = None  # type: ignore[assignment]
-
-    # Warn for potentially slow generic grid band when opted-in
-    if (not linear_model) and (ci_mode == "grid") and coef_ci_generic:
-        grid_size = max(int(round((2.0 * ci_range) / max(ci_step, 1e-12))) + 1, 1)
-        est_sec = float(v.warmup_time) * grid_size * reps
-        if est_sec > 10:
-            warnings.warn(
-                f"CI bands for stat_fn may take ~{est_sec:.1f} sec "
-                f"(warmup {v.warmup_time:.3f}s × grid≈{grid_size} × reps={reps})."
-            )
 
     # 3) Allocate outputs (small, O(reps))
     perm_stats = np.empty(reps, dtype=np.float64)
@@ -413,71 +394,33 @@ def ritest(  # noqa: C901
     # 6) (Optionally) compute coefficient CI artifacts
     coef_ci_bounds: Optional[tuple[float, float]] = None
     coef_ci_band = None
-    band_valid_linear = linear_model  # True for linear path; False for generic
+    band_valid_linear = linear_model  # True for linear path even if band absent
 
-    if ci_mode != "none":
-        if linear_model:
-            if ci_mode in {"bounds", "grid"}:
-                coef_ci_bounds = coef_ci_bounds_fast(
-                    beta_obs=obs_stat,
-                    beta_perm=perm_stats,
-                    K_obs=K_obs,  # type: ignore[arg-type]
-                    K_perm=cast(np.ndarray, K_perm_local),  # type: ignore[arg-type]
-                    se=se_obs,
-                    alpha=alpha,
-                    ci_range=ci_range,
-                    ci_step=ci_step,
-                    alternative=alternative,
-                )
-            if ci_mode == "grid":
-                coef_ci_band = coef_ci_band_fast(
-                    beta_obs=obs_stat,
-                    beta_perm=perm_stats,
-                    K_obs=K_obs,  # type: ignore[arg-type]
-                    K_perm=cast(np.ndarray, K_perm_local),  # type: ignore[arg-type]
-                    se=se_obs,
-                    ci_range=ci_range,
-                    ci_step=ci_step,
-                    alternative=alternative,
-                )
-        else:
-            if coef_ci_generic:
-
-                def _runner(beta0: float) -> float:
-                    shifted = obs_stat - beta0
-                    if alternative == "two-sided":
-                        return (np.abs(perm_stats - beta0) >= abs(shifted)).mean()
-                    elif alternative == "right":
-                        return (perm_stats - beta0 >= shifted).mean()
-                    else:
-                        return (perm_stats - beta0 <= shifted).mean()
-
-                se_scale = float(np.nanstd(perm_stats, ddof=1)) if reps >= 2 else 1.0
-                if not (se_scale > 0.0 and np.isfinite(se_scale)):
-                    se_scale = 1.0
-
-                if ci_mode in {"bounds", "grid"}:
-                    coef_ci_bounds = coef_ci_bounds_generic(
-                        obs_stat,
-                        runner=_runner,
-                        alpha=alpha,
-                        ci_range=ci_range,
-                        ci_step=ci_step,
-                        se=se_scale,
-                        alternative=alternative,
-                    )
-                if ci_mode == "grid":
-                    grid = (
-                        np.arange(
-                            -ci_range * se_scale,
-                            ci_range * se_scale + 1e-12,
-                            ci_step * se_scale,
-                        )
-                        + obs_stat
-                    )
-                    pvals = np.array([_runner(b0) for b0 in grid], dtype=np.float64)
-                    coef_ci_band = (grid, pvals)
-                    band_valid_linear = False
+    if ci_mode != "none" and linear_model:
+        if ci_mode in {"bounds", "grid"}:
+            coef_ci_bounds = coef_ci_bounds_fast(
+                beta_obs=obs_stat,
+                beta_perm=perm_stats,
+                K_obs=K_obs,  # type: ignore[arg-type]
+                K_perm=cast(np.ndarray, K_perm_local),  # type: ignore[arg-type]
+                se=se_obs,
+                alpha=alpha,
+                ci_range=ci_range,
+                ci_step=ci_step,
+                alternative=alternative,
+            )
+        if ci_mode == "grid":
+            coef_ci_band = coef_ci_band_fast(
+                beta_obs=obs_stat,
+                beta_perm=perm_stats,
+                K_obs=K_obs,  # type: ignore[arg-type]
+                K_perm=cast(np.ndarray, K_perm_local),  # type: ignore[arg-type]
+                se=se_obs,
+                ci_range=ci_range,
+                ci_step=ci_step,
+                alternative=alternative,
+            )
+            band_valid_linear = True
 
     # 7) STRICT GATING of outputs before building result
     _bounds = coef_ci_bounds
@@ -490,12 +433,8 @@ def ritest(  # noqa: C901
         _band_valid_linear = False
     elif ci_mode == "bounds":
         _band = None
-        # KEEP the linear flag: True for linear, False for generic
     elif ci_mode == "grid":
         _bounds = None
-        if (stat_fn is not None) and (not coef_ci_generic):
-            _band = None
-            _band_valid_linear = False
     else:
         raise ValueError(f"Unknown ci_mode: {ci_mode!r}")
 
@@ -510,7 +449,6 @@ def ritest(  # noqa: C901
         "ci_step": ci_step,
         "alternative": alternative,
         "n_jobs": n_jobs,
-        "coef_ci_generic": coef_ci_generic,
     }
 
     res = RitestResult(

@@ -134,7 +134,6 @@ def test_formula_flags_and_settings():
         "ci_step",
         "alternative",
         "n_jobs",
-        "coef_ci_generic",
     ]:
         assert key in s
     assert s["seed"] == cfg["seed"]
@@ -146,57 +145,19 @@ def test_formula_flags_and_settings():
 # -----------------------------
 # tests: generic stat_fn path
 # -----------------------------
-def test_generic_gating_skip_vs_enable():
+def test_generic_gating_skips_coef_ci():
     df = make_linear_df()
 
-    # By default, coef-CI is skipped for stat_fn regardless of ci_mode
-    with ritest_config(
-        {
-            "reps": 199,
-            "seed": 5,
-            "ci_mode": "grid",
-            "coef_ci_generic": False,
-            "n_jobs": 2,
-        }
-    ):
-        r_skip = ritest(df, permute_var="T", stat_fn=diff_in_means)
-    assert r_skip.coef_ci_bounds is None
-    assert r_skip.coef_ci_band is None
-
-    # Enable generic coef-CI (bounds)
-    with ritest_config(
-        {
-            "reps": 199,
-            "seed": 5,
-            "ci_mode": "bounds",
-            "coef_ci_generic": True,
-            "n_jobs": 2,
-        }
-    ):
+    # Coefficient CIs are not available for stat_fn path, regardless of ci_mode
+    with ritest_config({"reps": 199, "seed": 5, "ci_mode": "bounds", "n_jobs": 2}):
         r_bounds = ritest(df, permute_var="T", stat_fn=diff_in_means)
-    assert (
-        isinstance(r_bounds.coef_ci_bounds, tuple) and len(r_bounds.coef_ci_bounds) == 2
-    )
-    lo, hi = r_bounds.coef_ci_bounds
-    assert np.isfinite(lo) and np.isfinite(hi) and lo <= hi
+    assert r_bounds.coef_ci_bounds is None
     assert r_bounds.coef_ci_band is None
-    assert r_bounds.band_valid_linear is False  # generic path
 
-    # Enable generic coef-CI (grid)
-    with ritest_config(
-        {
-            "reps": 199,
-            "seed": 5,
-            "ci_mode": "grid",
-            "coef_ci_generic": True,
-            "n_jobs": 2,
-        }
-    ):
+    with ritest_config({"reps": 199, "seed": 5, "ci_mode": "grid", "n_jobs": 2}):
         r_grid = ritest(df, permute_var="T", stat_fn=diff_in_means)
-    assert r_grid.coef_ci_band is not None
-    grid, pvals = r_grid.coef_ci_band
-    assert grid.ndim == 1 and pvals.ndim == 1 and grid.size == pvals.size
-    assert np.all((pvals >= 0.0) & (pvals <= 1.0))
+    assert r_grid.coef_ci_bounds is None
+    assert r_grid.coef_ci_band is None
     assert r_grid.band_valid_linear is False  # generic path
 
 

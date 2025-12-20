@@ -65,7 +65,6 @@ ci_method: cp
 ci_mode: bounds
 ci_range: 3.0
 ci_step: 0.05
-coef_ci_generic: False
 n_jobs: 4
 reps: 1000
 seed: 23

@@ -148,7 +148,7 @@ def test_generic_basic_smoke_and_determinism_threads():
     assert isinstance(res1.pval_ci, tuple) and len(res1.pval_ci) == 2
     lo, hi = res1.pval_ci
     assert 0.0 <= lo <= hi <= 1.0
-    # generic path: no coef CIs unless explicitly grid+coef_ci_generic
+    # generic path: coefficient CIs are unavailable
     assert res1.coef_ci_bounds is None and res1.coef_ci_band is None
 
     with pytest.raises(ValueError):
@@ -182,8 +182,6 @@ def test_generic_chunking_vs_eager_identical(mode: Literal["none", "bounds", "gr
             ci_method="clopper-pearson",
             ci_mode=mode,
             n_jobs=2,
-            # for generic path, only GRID supports band and only with coef_ci_generic=True
-            coef_ci_generic=(mode == "grid"),
         )
 
     # force chunking
@@ -198,28 +196,14 @@ def test_generic_chunking_vs_eager_identical(mode: Literal["none", "bounds", "gr
             ci_method="clopper-pearson",
             ci_mode=mode,
             n_jobs=2,
-            coef_ci_generic=(mode == "grid"),
         )
 
     assert eager.obs_stat == pytest.approx(chunked.obs_stat, rel=0, abs=0)
     assert eager.pval == pytest.approx(chunked.pval, rel=0, abs=0)
     assert eager.c == chunked.c
 
-    # generic gating rules
-    if mode == "none":
-        assert eager.coef_ci_bounds is None and eager.coef_ci_band is None
-    elif mode == "bounds":
-        # bounds not supported for generic path
-        assert eager.coef_ci_bounds is None and eager.coef_ci_band is None
-    else:  # grid
-        assert eager.coef_ci_bounds is None
-        if eager.coef_ci_band is not None:
-            beta_grid, pvals = eager.coef_ci_band
-            assert isinstance(beta_grid, np.ndarray) and isinstance(pvals, np.ndarray)
-            assert (
-                beta_grid.ndim == 1 and pvals.ndim == 1 and beta_grid.size == pvals.size
-            )
-            assert np.all((pvals >= 0.0) & (pvals <= 1.0))
+    # generic path: coefficient CIs are always skipped
+    assert eager.coef_ci_bounds is None and eager.coef_ci_band is None
 
 
 # ------------------ 3) tail alternatives monotonicity ------------------ #
@@ -284,33 +268,18 @@ def test_generic_ci_modes_gating_and_shapes():
         seed=0,
         ci_mode="bounds",
     )
-    # bounds not supported on generic
+    # coef CIs not supported on generic path
     assert r_bounds.coef_ci_bounds is None and r_bounds.coef_ci_band is None
 
-    r_grid_no = ritest(
-        df=df,
-        permute_var="T",
-        stat_fn=_t_stat_T,
-        reps=400,
-        seed=0,
-        ci_mode="grid",  # coef_ci_generic defaults False
-    )
-    assert r_grid_no.coef_ci_bounds is None and r_grid_no.coef_ci_band is None
-
-    r_grid_yes = ritest(
+    r_grid = ritest(
         df=df,
         permute_var="T",
         stat_fn=_t_stat_T,
         reps=400,
         seed=0,
         ci_mode="grid",
-        coef_ci_generic=True,
     )
-    assert r_grid_yes.coef_ci_bounds is None and r_grid_yes.coef_ci_band is not None
-    beta_grid, pvals = r_grid_yes.coef_ci_band
-    assert isinstance(beta_grid, np.ndarray) and isinstance(pvals, np.ndarray)
-    assert beta_grid.ndim == 1 and pvals.ndim == 1 and beta_grid.size == pvals.size
-    assert np.all((pvals >= 0.0) & (pvals <= 1.0))
+    assert r_grid.coef_ci_bounds is None and r_grid.coef_ci_band is None
 
 
 # ------------------ 5/6/7) strata / cluster / both ------------------ #

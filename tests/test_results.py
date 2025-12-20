@@ -32,7 +32,7 @@ def make_res(
         "ci_mode": "grid" if with_band else "none",
         "n_jobs": 1,
     }
-    if with_band:
+    if with_band and band_valid_linear:
         grid = np.linspace(-0.5, 0.5, 11)
         pvals = np.clip(2.0 * np.abs(grid), 0.0, 1.0)
         band = (grid, pvals)
@@ -93,7 +93,7 @@ def test_summary_handles_missing_optionals_cleanly():
 def test_generic_band_note():
     res = make_res(band_valid_linear=False)
     s = res.summary(print_out=False)
-    assert "Coefficient CI band:   available (generic)" in s
+    assert "Coefficient CI band:   not computed" in s
 
 
 def test_explain_significant_and_not_significant():
@@ -116,6 +116,7 @@ def test_repr_and_str_are_concise():
 
 
 def test_plot_with_band_returns_axes_and_draws_lines():
+    pytest.importorskip("matplotlib.pyplot")
     res = make_res()
     ax = res.plot(show=False)
     assert isinstance(ax, Axes)
