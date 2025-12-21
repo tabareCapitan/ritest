@@ -165,6 +165,7 @@ def ritest(  # noqa: C901
 
     # 2) Observed statistic
     linear_model = v.stat_fn is None
+    need_coef_ci = linear_model and ci_mode != "none"
     if linear_model:
         ols = FastOLS(
             v.y,
@@ -187,15 +188,24 @@ def ritest(  # noqa: C901
 
     # 3) Allocate outputs (small, O(reps))
     perm_stats = np.empty(reps, dtype=np.float64)
-    K_perm_local = np.empty(reps, dtype=np.float64) if linear_model else None
+    K_perm_local = np.empty(reps, dtype=np.float64) if need_coef_ci else None
 
     # Helper workers (capture `v`, `t_metric_lin` by closure)
-    def _fit_one(args: Tuple[int, np.ndarray]) -> Tuple[int, float, float]:
-        """Linear-path worker: (abs_index, T_perm_row) -> (abs_index, beta_r, Kr)."""
-        r_abs, T_perm = args
-        Xp = v.X.copy()
+    def _solve_linear_perm(
+        T_perm: np.ndarray,
+        X_template: np.ndarray | None = None,
+        *,
+        reuse_template: bool = False,
+    ) -> FastOLS:
+        """Solve linear model for a permuted treatment vector."""
+        if X_template is None:
+            Xp = v.X.copy()
+        elif reuse_template:
+            Xp = X_template
+        else:
+            Xp = X_template.copy()
         Xp[:, v.treat_idx] = T_perm  # int8 → float cast on assignment
-        ols_r = FastOLS(
+        return FastOLS(
             v.y,
             Xp,
             v.treat_idx,
@@ -203,6 +213,17 @@ def ritest(  # noqa: C901
             cluster=v.cluster,
             compute_vcov=False,
         )
+
+    def _fit_one_beta(args: Tuple[int, np.ndarray]) -> Tuple[int, float]:
+        """Linear-path worker: returns only beta_r for ci_mode='none' cases."""
+        r_abs, T_perm = args
+        ols_r = _solve_linear_perm(T_perm)
+        return r_abs, float(ols_r.beta_hat)
+
+    def _fit_one_beta_K(args: Tuple[int, np.ndarray]) -> Tuple[int, float, float]:
+        """Linear-path worker: returns beta_r and Kr for CI computation."""
+        r_abs, T_perm = args
+        ols_r = _solve_linear_perm(T_perm)
         beta_r = float(ols_r.beta_hat)
         Kr = float(ols_r.c_vector @ t_metric_lin)  # type: ignore[arg-type]
         return r_abs, beta_r, Kr
@@ -226,31 +247,33 @@ def ritest(  # noqa: C901
             # Honor the supplied matrix size as the true reps
             reps = int(perms.shape[0])
             perm_stats = np.empty(reps, dtype=np.float64)
-            if linear_model:
+            if need_coef_ci:
                 K_perm_local = np.empty(reps, dtype=np.float64)
         # Process rows directly (no chunking for user-supplied matrix)
         if linear_model:
             if n_jobs == 1:
                 X_work = v.X.copy()
                 for r in range(reps):
-                    X_work[:, v.treat_idx] = perms[r]
-                    ols_r = FastOLS(
-                        v.y,
-                        X_work,
-                        v.treat_idx,
-                        weights=v.weights,
-                        cluster=v.cluster,
-                        compute_vcov=False,
+                    ols_r = _solve_linear_perm(
+                        perms[r], X_template=X_work, reuse_template=True
                     )
                     perm_stats[r] = float(ols_r.beta_hat)
-                    K_perm_local[r] = float(ols_r.c_vector @ t_metric_lin)  # type: ignore[index]
+                    if need_coef_ci:
+                        K_perm_local[r] = float(ols_r.c_vector @ t_metric_lin)  # type: ignore[index]
             else:
+                worker = _fit_one_beta_K if need_coef_ci else _fit_one_beta
                 with ThreadPoolExecutor(max_workers=n_jobs) as ex:
-                    for r_abs, beta_r, Kr in ex.map(
-                        lambda a: _fit_one(a), ((r, perms[r]) for r in range(reps))
-                    ):
-                        perm_stats[r_abs] = beta_r
-                        K_perm_local[r_abs] = Kr  # type: ignore[index]
+                    if need_coef_ci:
+                        for r_abs, beta_r, Kr in ex.map(
+                            worker, ((r, perms[r]) for r in range(reps))
+                        ):
+                            perm_stats[r_abs] = beta_r
+                            K_perm_local[r_abs] = Kr  # type: ignore[index]
+                    else:
+                        for r_abs, beta_r in ex.map(
+                            worker, ((r, perms[r]) for r in range(reps))
+                        ):
+                            perm_stats[r_abs] = beta_r
         else:
             if n_jobs == 1:
                 for r in range(reps):
@@ -279,24 +302,26 @@ def ritest(  # noqa: C901
                 if n_jobs == 1:
                     X_work = v.X.copy()
                     for r in range(reps):
-                        X_work[:, v.treat_idx] = T_perms[r]
-                        ols_r = FastOLS(
-                            v.y,
-                            X_work,
-                            v.treat_idx,
-                            weights=v.weights,
-                            cluster=v.cluster,
-                            compute_vcov=False,
+                        ols_r = _solve_linear_perm(
+                            T_perms[r], X_template=X_work, reuse_template=True
                         )
                         perm_stats[r] = float(ols_r.beta_hat)
-                        K_perm_local[r] = float(ols_r.c_vector @ t_metric_lin)  # type: ignore[index]
+                        if need_coef_ci:
+                            K_perm_local[r] = float(ols_r.c_vector @ t_metric_lin)  # type: ignore[index]
                 else:
+                    worker = _fit_one_beta_K if need_coef_ci else _fit_one_beta
                     with ThreadPoolExecutor(max_workers=n_jobs) as ex:
-                        for r, beta_r, Kr in ex.map(
-                            _fit_one, ((r, T_perms[r]) for r in range(reps))
-                        ):
-                            perm_stats[r] = beta_r
-                            K_perm_local[r] = Kr  # type: ignore[index]
+                        if need_coef_ci:
+                            for r, beta_r, Kr in ex.map(
+                                worker, ((r, T_perms[r]) for r in range(reps))
+                            ):
+                                perm_stats[r] = beta_r
+                                K_perm_local[r] = Kr  # type: ignore[index]
+                        else:
+                            for r, beta_r in ex.map(
+                                worker, ((r, T_perms[r]) for r in range(reps))
+                            ):
+                                perm_stats[r] = beta_r
             else:
                 if n_jobs == 1:
                     for r in range(reps):
@@ -316,7 +341,7 @@ def ritest(  # noqa: C901
             if chunk_rows <= 0:  # ultra-conservative fallback
                 chunk_rows = perm_chunk_min_rows
 
-            r0 = 0  # absolute write position into perm_stats / K_perm_local
+            r0 = 0  # absolute write position into perm_stats (and K_perm_local when present)
             if n_jobs == 1:
                 # Serial evaluation per block
                 X_work: Optional[np.ndarray] = None
@@ -335,17 +360,14 @@ def ritest(  # noqa: C901
                     if linear_model:
                         Xw = cast(np.ndarray, X_work)
                         for i in range(m):
-                            Xw[:, v.treat_idx] = block[i]
-                            ols_r = FastOLS(
-                                v.y,
-                                Xw,
-                                v.treat_idx,
-                                weights=v.weights,
-                                cluster=v.cluster,
-                                compute_vcov=False,
+                            ols_r = _solve_linear_perm(
+                                block[i], X_template=Xw, reuse_template=True
                             )
                             perm_stats[r0 + i] = float(ols_r.beta_hat)
-                            K_perm_local[r0 + i] = float(ols_r.c_vector @ t_metric_lin)  # type: ignore[index]
+                            if need_coef_ci:
+                                K_perm_local[r0 + i] = float(
+                                    ols_r.c_vector @ t_metric_lin
+                                )  # type: ignore[index]
                     else:
                         for i in range(m):
                             dfp = df.copy(deep=False)
@@ -366,11 +388,18 @@ def ritest(  # noqa: C901
                         m = block.shape[0]
                         if linear_model:
                             # Map absolute indices to rows in the current block
-                            for r_abs, beta_r, Kr in ex.map(
-                                _fit_one, ((r0 + i, block[i]) for i in range(m))
-                            ):
-                                perm_stats[r_abs] = beta_r
-                                K_perm_local[r_abs] = Kr  # type: ignore[index]
+                            worker = _fit_one_beta_K if need_coef_ci else _fit_one_beta
+                            if need_coef_ci:
+                                for r_abs, beta_r, Kr in ex.map(
+                                    worker, ((r0 + i, block[i]) for i in range(m))
+                                ):
+                                    perm_stats[r_abs] = beta_r
+                                    K_perm_local[r_abs] = Kr  # type: ignore[index]
+                            else:
+                                for r_abs, beta_r in ex.map(
+                                    worker, ((r0 + i, block[i]) for i in range(m))
+                                ):
+                                    perm_stats[r_abs] = beta_r
                         else:
                             for r_abs, z in ex.map(
                                 _eval_one, ((r0 + i, block[i]) for i in range(m))
@@ -393,15 +422,16 @@ def ritest(  # noqa: C901
     # 6) (Optionally) compute coefficient CI artifacts
     coef_ci_bounds: Optional[tuple[float, float]] = None
     coef_ci_band = None
-    band_valid_linear = linear_model  # True for linear path even if band absent
+    band_valid_linear = linear_model and need_coef_ci
 
-    if ci_mode != "none" and linear_model:
+    if need_coef_ci:
+        K_perm_arr = cast(np.ndarray, K_perm_local)
         if ci_mode in {"bounds", "grid"}:
             coef_ci_bounds = coef_ci_bounds_fast(
                 beta_obs=obs_stat,
                 beta_perm=perm_stats,
                 K_obs=K_obs,  # type: ignore[arg-type]
-                K_perm=cast(np.ndarray, K_perm_local),  # type: ignore[arg-type]
+                K_perm=K_perm_arr,
                 se=se_obs,
                 alpha=alpha,
                 ci_range=ci_range,
@@ -413,7 +443,7 @@ def ritest(  # noqa: C901
                 beta_obs=obs_stat,
                 beta_perm=perm_stats,
                 K_obs=K_obs,  # type: ignore[arg-type]
-                K_perm=cast(np.ndarray, K_perm_local),  # type: ignore[arg-type]
+                K_perm=K_perm_arr,
                 se=se_obs,
                 ci_range=ci_range,
                 ci_step=ci_step,

@@ -51,7 +51,7 @@ THIS_DIR = Path(__file__).resolve().parent
 CO_DIR = THIS_DIR.parent
 
 DATA = CO_DIR / "data" / "colombia.csv"
-OUT_TABLES = CO_DIR / "output" / "tables"
+OUT_TABLES = CO_DIR / "output" / "logs"
 OUT_TABLES.mkdir(parents=True, exist_ok=True)
 
 # -----------------------------

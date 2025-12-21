@@ -86,6 +86,35 @@ def test_formula_ci_modes_none_bounds_grid():
     assert r_grid.band_valid_linear is True
 
 
+def test_ci_mode_none_matches_stats_without_coef_ci_work():
+    df = make_linear_df()
+    base = {"reps": 211, "seed": 17, "n_jobs": 1}
+
+    with ritest_config({**base, "ci_mode": "none"}):
+        r_none = ritest(df, permute_var="T", formula="y ~ T + x1 + x2", stat="T")
+    with ritest_config({**base, "ci_mode": "bounds"}):
+        r_bounds = ritest(df, permute_var="T", formula="y ~ T + x1 + x2", stat="T")
+
+    # identical permutation outcomes
+    assert np.isclose(r_none.obs_stat, r_bounds.obs_stat)
+    assert np.isclose(r_none.pval, r_bounds.pval)
+    assert r_none.pval_ci == r_bounds.pval_ci
+    assert r_none.reps == r_bounds.reps == base["reps"]
+    assert r_none.c == r_bounds.c
+    assert r_none.perm_stats is not None and r_bounds.perm_stats is not None
+    assert np.array_equal(r_none.perm_stats, r_bounds.perm_stats)
+
+    # ci_mode none should skip coef CI artifacts entirely
+    assert r_none.coef_ci_bounds is None
+    assert r_none.coef_ci_band is None
+    assert r_none.band_valid_linear is False
+
+    # bounds mode still produces bounds but no band
+    assert r_bounds.coef_ci_bounds is not None
+    assert r_bounds.coef_ci_band is None
+    assert r_bounds.band_valid_linear is True
+
+
 def test_formula_parallel_equals_serial():
     df = make_linear_df()
     base = {"reps": 257, "seed": 99, "ci_mode": "none"}
