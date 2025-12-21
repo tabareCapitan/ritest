@@ -194,8 +194,8 @@ def validate_inputs(
     except ValueError as exc:
         raise ValueError(f"Validation error: {exc}")
     _require(
-        ci_mode in {"none", "bounds", "grid"},
-        "ci_mode must be 'none', 'bounds', or 'grid'",
+        ci_mode in {"none", "bounds", "band"},
+        "ci_mode must be 'none', 'bounds', or 'band'",
     )
     _require(ci_range > 0.0, "ci_range must be > 0")
     _require(ci_step > 0.0, "ci_step must be > 0")

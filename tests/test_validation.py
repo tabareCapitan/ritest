@@ -196,16 +196,16 @@ def test_ci_method_invalid_raises():
         )
 
 
-@pytest.mark.parametrize("ci_mode", ["none", "bounds", "grid"])
+@pytest.mark.parametrize("ci_mode", ["none", "bounds", "band"])
 def test_ci_mode_valid_values_ok(ci_mode):
     df = make_base_df()
     validate_inputs(df, permute_var="T", formula="y ~ T", stat="T", ci_mode=ci_mode)
 
 
-@pytest.mark.parametrize("ci_mode", ["BOUNDs", "band", "invalid"])
+@pytest.mark.parametrize("ci_mode", ["BOUNDs", "bands", "invalid", "grid"])
 def test_ci_mode_invalid_raises(ci_mode):
     df = make_base_df()
-    with pytest.raises(ValueError, match="ci_mode must be 'none', 'bounds', or 'grid'"):
+    with pytest.raises(ValueError, match="ci_mode must be 'none', 'bounds', or 'band'"):
         validate_inputs(df, permute_var="T", formula="y ~ T", stat="T", ci_mode=ci_mode)
 
 
@@ -517,7 +517,7 @@ def test_generic_ci_warning_added_when_ci_mode_for_stat_fn():
         df,
         permute_var="T",
         stat_fn=diff_in_means,
-        ci_mode="grid",
+        ci_mode="band",
     )
     msgs = "\n".join(v.warnings)
     assert "Coefficient CIs are only available for the linear formula/stat path" in msgs

@@ -26,7 +26,7 @@ __all__ = [
 
 
 Alt = Literal["two-sided", "left", "right"]
-CiMode = Literal["none", "bounds", "grid"]
+CiMode = Literal["none", "bounds", "band"]
 CiMethod = Literal["clopper-pearson", "normal"]
 
 

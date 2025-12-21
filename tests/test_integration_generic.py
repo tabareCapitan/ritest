@@ -166,8 +166,8 @@ def test_generic_basic_smoke_and_determinism_threads():
 # ------------------ 2) chunking vs eager parity (all modes) ------------------ #
 
 
-@pytest.mark.parametrize("mode", ["none", "bounds", "grid"])
-def test_generic_chunking_vs_eager_identical(mode: Literal["none", "bounds", "grid"]):
+@pytest.mark.parametrize("mode", ["none", "bounds", "band"])
+def test_generic_chunking_vs_eager_identical(mode: Literal["none", "bounds", "band"]):
     df = _toy_df(n=200, seed=2025)
 
     # likely eager for these sizes
@@ -271,15 +271,15 @@ def test_generic_ci_modes_gating_and_shapes():
     # coef CIs not supported on generic path
     assert r_bounds.coef_ci_bounds is None and r_bounds.coef_ci_band is None
 
-    r_grid = ritest(
+    r_band = ritest(
         df=df,
         permute_var="T",
         stat_fn=_t_stat_T,
         reps=400,
         seed=0,
-        ci_mode="grid",
+        ci_mode="band",
     )
-    assert r_grid.coef_ci_bounds is None and r_grid.coef_ci_band is None
+    assert r_band.coef_ci_bounds is None and r_band.coef_ci_band is None
 
 
 # ------------------ 5/6/7) strata / cluster / both ------------------ #

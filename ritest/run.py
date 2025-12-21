@@ -8,7 +8,7 @@ public API. It coordinates:
 - permutation generation (full matrix or streamed),
 - model evaluation (FastOLS or user-supplied stat_fn),
 - p-value and p-value CI calculation,
-- optional coefficient CI bounds/bands,
+- optional coefficient CI bounds/band,
 - packaging results into `RitestResult`.
 """
 
@@ -109,7 +109,7 @@ def ritest(  # noqa: C901
     seed: int | None = None,
     alpha: float | None = None,
     ci_method: str | _PValCIMethod | None = None,
-    ci_mode: str | None = None,  # "none" | "bounds" | "grid"
+    ci_mode: str | None = None,  # "none" | "bounds" | "band"
     ci_range: float | None = None,
     ci_step: float | None = None,
     n_jobs: int | None = None,
@@ -426,7 +426,7 @@ def ritest(  # noqa: C901
 
     if need_coef_ci:
         K_perm_arr = cast(np.ndarray, K_perm_local)
-        if ci_mode in {"bounds", "grid"}:
+        if ci_mode in {"bounds", "band"}:
             coef_ci_bounds = coef_ci_bounds_fast(
                 beta_obs=obs_stat,
                 beta_perm=perm_stats,
@@ -438,7 +438,7 @@ def ritest(  # noqa: C901
                 ci_step=ci_step,
                 alternative=alternative,
             )
-        if ci_mode == "grid":
+        if ci_mode == "band":
             coef_ci_band = coef_ci_band_fast(
                 beta_obs=obs_stat,
                 beta_perm=perm_stats,
@@ -462,8 +462,8 @@ def ritest(  # noqa: C901
         _band_valid_linear = False
     elif ci_mode == "bounds":
         _band = None
-    elif ci_mode == "grid":
-        _bounds = None
+    elif ci_mode == "band":
+        pass
     else:
         raise ValueError(f"Unknown ci_mode: {ci_mode!r}")
 

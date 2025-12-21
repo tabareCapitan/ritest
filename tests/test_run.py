@@ -54,7 +54,7 @@ def diff_in_means(d: pd.DataFrame) -> float:
 # -----------------------------
 # tests: fast-linear path
 # -----------------------------
-def test_formula_ci_modes_none_bounds_grid():
+def test_formula_ci_modes_none_bounds_band():
     df = make_linear_df()
 
     # ci_mode = none  → no coef-CI at all
@@ -76,14 +76,15 @@ def test_formula_ci_modes_none_bounds_grid():
     assert r_bounds.coef_ci_band is None
     assert r_bounds.band_valid_linear is True
 
-    # ci_mode = grid  → band (and bounds)
-    with ritest_config({"reps": 399, "seed": 7, "ci_mode": "grid", "n_jobs": 1}):
-        r_grid = ritest(df, permute_var="T", formula="y ~ T + x1 + x2", stat="T")
-    assert r_grid.coef_ci_band is not None
-    grid, pvals = r_grid.coef_ci_band
+    # ci_mode = band  → band (and bounds)
+    with ritest_config({"reps": 399, "seed": 7, "ci_mode": "band", "n_jobs": 1}):
+        r_band = ritest(df, permute_var="T", formula="y ~ T + x1 + x2", stat="T")
+    assert isinstance(r_band.coef_ci_bounds, tuple) and len(r_band.coef_ci_bounds) == 2
+    assert r_band.coef_ci_band is not None
+    grid, pvals = r_band.coef_ci_band
     assert grid.ndim == 1 and pvals.ndim == 1 and grid.size == pvals.size
     assert np.all((pvals >= 0.0) & (pvals <= 1.0))
-    assert r_grid.band_valid_linear is True
+    assert r_band.band_valid_linear is True
 
 
 def test_ci_mode_none_matches_stats_without_coef_ci_work():
@@ -183,11 +184,11 @@ def test_generic_gating_skips_coef_ci():
     assert r_bounds.coef_ci_bounds is None
     assert r_bounds.coef_ci_band is None
 
-    with ritest_config({"reps": 199, "seed": 5, "ci_mode": "grid", "n_jobs": 2}):
-        r_grid = ritest(df, permute_var="T", stat_fn=diff_in_means)
-    assert r_grid.coef_ci_bounds is None
-    assert r_grid.coef_ci_band is None
-    assert r_grid.band_valid_linear is False  # generic path
+    with ritest_config({"reps": 199, "seed": 5, "ci_mode": "band", "n_jobs": 2}):
+        r_band = ritest(df, permute_var="T", stat_fn=diff_in_means)
+    assert r_band.coef_ci_bounds is None
+    assert r_band.coef_ci_band is None
+    assert r_band.band_valid_linear is False  # generic path
 
 
 def test_generic_p_and_ci_and_shapes():

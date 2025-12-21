@@ -29,7 +29,7 @@ def make_res(
         "alpha": 0.05,
         "seed": 123,
         "ci_method": "clopper-pearson",
-        "ci_mode": "grid" if with_band else "none",
+        "ci_mode": "band" if with_band else "none",
         "n_jobs": 1,
     }
     if with_band and band_valid_linear:
@@ -70,6 +70,7 @@ def test_summary_includes_sections_and_values():
     assert "Observed effect (β̂):" in s
     assert "Tail (alternative):     two-sided" in s
     assert "As-or-more extreme:     160 / 5000" in s
+    assert "Coefficient CI bounds: [" in s
     assert "Coefficient CI band:   available (fast-linear)" in s
 
     # deterministic formatting
@@ -77,7 +78,7 @@ def test_summary_includes_sections_and_values():
     assert "alpha:                  0.050" in s
     assert "seed:                   123" in s
     assert "ci_method:              clopper-pearson" in s
-    assert "ci_mode:                grid" in s
+    assert "ci_mode:                band" in s
     assert "n_jobs:                 1" in s
 
 

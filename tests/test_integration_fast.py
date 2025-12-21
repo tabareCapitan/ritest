@@ -149,8 +149,8 @@ def test_fast_basic_smoke_and_determinism_threads():
 # ------------------ 2) chunking vs eager parity (all modes) ------------------ #
 
 
-@pytest.mark.parametrize("mode", ["none", "bounds", "grid"])
-def test_chunking_vs_eager_identical(mode: Literal["none", "bounds", "grid"]):
+@pytest.mark.parametrize("mode", ["none", "bounds", "band"])
+def test_chunking_vs_eager_identical(mode: Literal["none", "bounds", "band"]):
     df = _toy_df(n=220, seed=2025)
 
     # likely eager for these sizes
@@ -192,7 +192,9 @@ def test_chunking_vs_eager_identical(mode: Literal["none", "bounds", "grid"]):
     elif mode == "bounds":
         assert isinstance(eager.coef_ci_bounds, tuple) and eager.coef_ci_band is None
     else:
-        assert eager.coef_ci_bounds is None and isinstance(eager.coef_ci_band, tuple)
+        assert isinstance(eager.coef_ci_bounds, tuple) and isinstance(
+            eager.coef_ci_band, tuple
+        )
 
 
 # ------------------ 3) tail alternatives monotonicity ------------------ #
@@ -239,7 +241,7 @@ def test_tail_alternatives_monotonicity():
 # ------------------ 4) ci mode gating + shapes ------------------ #
 
 
-def test_ci_bounds_and_grid_gating_and_shapes():
+def test_ci_bounds_and_band_gating_and_shapes():
     df = _toy_df(n=200, beta=0.7, seed=5)
 
     r_none = ritest(
@@ -266,17 +268,19 @@ def test_ci_bounds_and_grid_gating_and_shapes():
     lo, hi = r_bounds.coef_ci_bounds
     assert (np.isfinite(lo) and np.isfinite(hi)) or (np.isnan(lo) and np.isnan(hi))
 
-    r_grid = ritest(
+    r_band = ritest(
         df=df,
         permute_var="T",
         formula="y ~ T + X1 + X2",
         stat="T",
         reps=400,
         seed=0,
-        ci_mode="grid",
+        ci_mode="band",
     )
-    assert r_grid.coef_ci_bounds is None and isinstance(r_grid.coef_ci_band, tuple)
-    beta_grid, pvals = r_grid.coef_ci_band
+    assert isinstance(r_band.coef_ci_bounds, tuple) and isinstance(
+        r_band.coef_ci_band, tuple
+    )
+    beta_grid, pvals = r_band.coef_ci_band
     assert isinstance(beta_grid, np.ndarray) and isinstance(pvals, np.ndarray)
     assert beta_grid.ndim == 1 and pvals.ndim == 1 and beta_grid.size == pvals.size
     assert np.all((pvals >= 0.0) & (pvals <= 1.0))

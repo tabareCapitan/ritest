@@ -51,7 +51,7 @@ def test_defaults_shape_and_types():
     assert isinstance(d["seed"], int)
     assert isinstance(d["alpha"], float) and 0 < d["alpha"] < 1
     assert d["ci_method"] in {"clopper-pearson", "normal"}
-    assert d["ci_mode"] in {"bounds", "grid", "none"}
+    assert d["ci_mode"] in {"bounds", "band", "none"}
     assert isinstance(d["ci_range"], float) and d["ci_range"] > 0
     assert isinstance(d["ci_step"], float) and d["ci_step"] > 0
     assert isinstance(d["ci_tol"], float) and d["ci_tol"] > 0
@@ -163,7 +163,8 @@ def test_ci_method_validation(overrides):
     "overrides",
     [
         {"ci_mode": "BOUNDs"},
-        {"ci_mode": "band"},
+        {"ci_mode": "bands"},
+        {"ci_mode": "grid"},
         {"ci_mode": 0},
     ],
 )
@@ -257,7 +258,7 @@ def test_reset_all_restores_import_time_defaults_and_identity():
             "alpha": 0.1,
             "reps": 777,
             "ci_method": "normal",
-            "ci_mode": "grid",
+            "ci_mode": "band",
             "ci_range": 4.0,
             "ci_step": 0.01,
             "ci_tol": 1e-5,

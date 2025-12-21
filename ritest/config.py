@@ -42,13 +42,13 @@ DEFAULTS: Dict[str, Any] = {
     # --- CI for permutation p-value ---
     "ci_method": "clopper-pearson",  # 'clopper-pearson' (exact) or 'normal' (Wald)
     # --- Coefficient-CI controls ---
-    # 'none'   : do not compute coefficient CI (neither bounds nor grid)
+    # 'none'   : do not compute coefficient CI (neither bounds nor band)
     # 'bounds' : compute only the 2-point coefficient CI
-    # 'grid'   : compute the full (β, p(β)) band (and bounds)
+    # 'band'   : compute the full (β, p(β)) band (and bounds)
     "ci_mode": "bounds",
     # Search/grid sizing for coefficient CI (interpreted in SE units)
     "ci_range": 3.0,  # search half-range in SE units
-    "ci_step": 0.005,  # grid step in SE units (used when ci_mode == 'grid')
+    "ci_step": 0.005,  # grid step in SE units (used when ci_mode == 'band')
     "ci_tol": 1e-4,  # bisection tolerance (as *SE* fractions)
     # --- Parallelism ---
     "n_jobs": -1,  # -1 = use all available CPU cores
@@ -69,7 +69,7 @@ DEFAULTS: Dict[str, Any] = {
 _BASE_DEFAULTS: Dict[str, Any] = deepcopy(DEFAULTS)
 
 _ALLOWED_CI_METHODS = {"clopper-pearson", "normal"}
-_ALLOWED_CI_MODES = {"none", "bounds", "grid"}
+_ALLOWED_CI_MODES = {"none", "bounds", "band"}
 
 _CI_METHOD_CANONICAL = {
     "clopper-pearson": "clopper-pearson",

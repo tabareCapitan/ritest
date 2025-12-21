@@ -272,11 +272,11 @@ class RitestResult:
         Raises
         ------
         ValueError
-            If `coef_ci_band` is not available (e.g. ci_mode != "grid").
+        If `coef_ci_band` is not available (e.g. ci_mode != "band").
         """
         if self.coef_ci_band is None:
             raise ValueError(
-                "coef_ci_band is not available (likely ci_mode != 'grid')."
+                "coef_ci_band is not available (likely ci_mode != 'band')."
             )
 
         # Lazy import to avoid unnecessary dependency cost on summary-only use
