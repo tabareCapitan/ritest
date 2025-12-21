@@ -27,6 +27,8 @@ import numpy as np
 import pandas as pd
 import patsy
 
+from .config import _canonical_ci_method
+
 
 # --------------------------------------------------------------------- #
 # Public return container
@@ -50,7 +52,7 @@ class ValidatedInputs:
 
     alternative: str = "two-sided"
     alpha: float = 0.05
-    ci_method: str = "cp"
+    ci_method: str = "clopper-pearson"
     ci_mode: str = "bounds"
     ci_range: float = 3.0
     ci_step: float = 0.005
@@ -147,7 +149,7 @@ def validate_inputs(
     # Test direction & config knobs (already defaulted upstream)
     alternative: str = "two-sided",
     alpha: float = 0.05,
-    ci_method: str = "cp",
+    ci_method: str = "clopper-pearson",
     ci_mode: str = "bounds",
     ci_range: float = 3.0,
     ci_step: float = 0.005,
@@ -187,10 +189,10 @@ def validate_inputs(
 
     # CI parameters used by p-value CIs and coefficient CIs
     _require(0.0 < float(alpha) < 1.0, "alpha must be in (0, 1)")
-    _require(
-        ci_method in {"cp", "normal"},
-        "ci_method must be 'cp' (Clopper–Pearson) or 'normal' (Wald with continuity correction)",
-    )
+    try:
+        ci_method_canon = _canonical_ci_method(ci_method)
+    except ValueError as exc:
+        raise ValueError(f"Validation error: {exc}")
     _require(
         ci_mode in {"none", "bounds", "grid"},
         "ci_mode must be 'none', 'bounds', or 'grid'",
@@ -344,7 +346,7 @@ def validate_inputs(
             stat_fn=None,
             alternative=alternative,
             alpha=alpha,
-            ci_method=ci_method,
+            ci_method=ci_method_canon,
             ci_mode=ci_mode,
             ci_range=ci_range,
             ci_step=ci_step,

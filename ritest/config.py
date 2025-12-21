@@ -40,7 +40,7 @@ DEFAULTS: Dict[str, Any] = {
     "seed": 23,  # Random seed (default: for MJ fans)
     "alpha": 0.05,  # Significance level for p-value and CI
     # --- CI for permutation p-value ---
-    "ci_method": "cp",  # 'cp' = Clopper–Pearson, 'normal' = Wald
+    "ci_method": "clopper-pearson",  # 'clopper-pearson' (exact) or 'normal' (Wald)
     # --- Coefficient-CI controls ---
     # 'none'   : do not compute coefficient CI (neither bounds nor grid)
     # 'bounds' : compute only the 2-point coefficient CI
@@ -68,8 +68,45 @@ DEFAULTS: Dict[str, Any] = {
 # Use a deepcopy for future-proofing if nested structures are added later.
 _BASE_DEFAULTS: Dict[str, Any] = deepcopy(DEFAULTS)
 
-_ALLOWED_CI_METHODS = {"cp", "normal"}
+_ALLOWED_CI_METHODS = {"clopper-pearson", "normal"}
 _ALLOWED_CI_MODES = {"none", "bounds", "grid"}
+
+_CI_METHOD_CANONICAL = {
+    "clopper-pearson": "clopper-pearson",
+    "clopper pearson": "clopper-pearson",
+    "clopperpearson": "clopper-pearson",
+    "clopper": "clopper-pearson",
+    "exact": "clopper-pearson",
+    "cp": "clopper-pearson",
+    "normal": "normal",
+    "wald": "normal",
+}
+
+
+def _canonical_ci_method(val: Any) -> str:
+    """
+    Normalize ci_method inputs to canonical labels.
+
+    Accepts legacy aliases like "cp" but always returns the long-form strings
+    used by the public API.
+    """
+    s = str(val).strip().lower().replace("_", "-")
+    s = s.replace("  ", " ")
+    if s in _CI_METHOD_CANONICAL:
+        return _CI_METHOD_CANONICAL[s]
+    allowed = ", ".join(sorted(_ALLOWED_CI_METHODS))
+    raise ValueError(f"ci_method must be one of {{{allowed}}} (got {val!r})")
+
+
+def _normalize_overrides(overrides: Mapping[str, Any]) -> Dict[str, Any]:
+    """Return a copy of overrides with canonicalised values when needed."""
+    normalized: Dict[str, Any] = {}
+    for k, v in overrides.items():
+        if k == "ci_method":
+            normalized[k] = _canonical_ci_method(v)
+        else:
+            normalized[k] = v
+    return normalized
 
 
 def _validate_pair(key: str, val: Any) -> None:
@@ -96,10 +133,7 @@ def _validate_pair(key: str, val: Any) -> None:
             )
 
     elif key == "ci_method":
-        if val not in _ALLOWED_CI_METHODS:
-            raise ValueError(
-                f"ci_method must be one of {_ALLOWED_CI_METHODS} (got {val!r})"
-            )
+        _canonical_ci_method(val)
 
     elif key == "ci_mode":
         if val not in _ALLOWED_CI_MODES:
@@ -152,12 +186,14 @@ def ritest_set(overrides: Mapping[str, Any]) -> None:
     if not isinstance(overrides, Mapping):
         raise ValueError("overrides must be a mapping of {key: value}")
 
+    normalized = _normalize_overrides(overrides)
+
     # Validate first, then apply (all-or-nothing semantics)
-    for k, v in overrides.items():
+    for k, v in normalized.items():
         _validate_pair(k, v)
 
     # Apply in-place
-    DEFAULTS.update(overrides)
+    DEFAULTS.update(normalized)
 
 
 def ritest_get(key: Optional[str] = None) -> Any:

@@ -50,7 +50,7 @@ def test_defaults_shape_and_types():
     assert isinstance(d["reps"], int) and d["reps"] > 0
     assert isinstance(d["seed"], int)
     assert isinstance(d["alpha"], float) and 0 < d["alpha"] < 1
-    assert d["ci_method"] in {"cp", "normal"}
+    assert d["ci_method"] in {"clopper-pearson", "normal"}
     assert d["ci_mode"] in {"bounds", "grid", "none"}
     assert isinstance(d["ci_range"], float) and d["ci_range"] > 0
     assert isinstance(d["ci_step"], float) and d["ci_step"] > 0
@@ -84,6 +84,11 @@ def test_set_valid_updates_and_identity_preserved():
     got = ritest_get()
     assert got["alpha"] == 0.1
     assert got["reps"] == 2000
+
+
+def test_ci_method_alias_normalised_to_canonical():
+    ritest_set({"ci_method": "cp"})
+    assert ritest_get("ci_method") == "clopper-pearson"
 
 
 def test_set_all_or_nothing_semantics():
@@ -144,8 +149,8 @@ def test_alpha_validation(overrides):
 @pytest.mark.parametrize(
     "overrides",
     [
-        {"ci_method": "CP"},  # case sensitive
         {"ci_method": "beta"},
+        {"ci_method": "pearson"},
         {"ci_method": 123},
     ],
 )

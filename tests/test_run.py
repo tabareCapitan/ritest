@@ -164,7 +164,13 @@ def test_generic_gating_skips_coef_ci():
 def test_generic_p_and_ci_and_shapes():
     df = make_linear_df()
     with ritest_config(
-        {"reps": 299, "seed": 13, "ci_method": "cp", "ci_mode": "none", "n_jobs": 1}
+        {
+            "reps": 299,
+            "seed": 13,
+            "ci_method": "clopper-pearson",
+            "ci_mode": "none",
+            "n_jobs": 1,
+        }
     ):
         r = ritest(df, permute_var="T", stat_fn=diff_in_means)
     # p-value & CI sanity

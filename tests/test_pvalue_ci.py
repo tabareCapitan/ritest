@@ -68,7 +68,7 @@ def test_cp_matches_statsmodels(c: int, reps: int, alpha: float):
     """Clopper–Pearson should match statsmodels' 'beta' method exactly."""
     if c == 0:
         print("\n[1] CP vs statsmodels:'beta'")
-    lo, hi = pvalue_ci(c, reps, alpha=alpha, method="cp")
+    lo, hi = pvalue_ci(c, reps, alpha=alpha, method="clopper-pearson")
     lo_sm, hi_sm = proportion_confint(c, reps, alpha=alpha, method="beta")
 
     print(f"  CP   (c={c}, R={reps}, α={alpha})")
@@ -91,8 +91,10 @@ def test_cp_complementarity_property():
     alphas = (0.01, 0.05, 0.10)
     for alpha in alphas:
         for c in (0, 1, 5, 10, 25, 49, 50):
-            lo_c, hi_c = pvalue_ci(c, reps, alpha=alpha, method="cp")
-            lo_m, hi_m = pvalue_ci(reps - c, reps, alpha=alpha, method="cp")
+            lo_c, hi_c = pvalue_ci(c, reps, alpha=alpha, method="clopper-pearson")
+            lo_m, hi_m = pvalue_ci(
+                reps - c, reps, alpha=alpha, method="clopper-pearson"
+            )
 
             print(f"  R={reps}, α={alpha}, c={c:2d} -> U(c)≈1-L(R-c), L(c)≈1-U(R-c)")
             assert math.isclose(hi_c, 1.0 - lo_m, rel_tol=1e-10, abs_tol=1e-10)
@@ -108,7 +110,7 @@ def test_cp_monotone_in_c():
     alpha = 0.05
     lows, highs = [], []
     for c in range(reps + 1):
-        lo, hi = pvalue_ci(c, reps, alpha=alpha, method="cp")
+        lo, hi = pvalue_ci(c, reps, alpha=alpha, method="clopper-pearson")
         lows.append(lo)
         highs.append(hi)
     assert all(x2 >= x1 for x1, x2 in zip(lows, lows[1:]))
@@ -165,7 +167,7 @@ def test_normal_edges_clip_to_unit_interval():
 # ================================================================== #
 
 
-@pytest.mark.parametrize("method", ["cp", "normal"])
+@pytest.mark.parametrize("method", ["clopper-pearson", "normal"])
 def test_alpha_controls_width(method: str):
     print("\n[3] alpha sensitivity (smaller alpha => wider CI)")
     reps, c = 200, 40
@@ -220,12 +222,20 @@ def test_numpy_integer_rejected_currently():
         pvalue_ci(np.int64(1), 10)  # type: ignore[arg-type]
 
 
+def test_cp_alias_is_supported():
+    """Legacy short name 'cp' should remain accepted and map to canonical output."""
+    c, reps, alpha = 7, 20, 0.05
+    lo_alias, hi_alias = pvalue_ci(c, reps, alpha=alpha, method="cp")
+    lo_full, hi_full = pvalue_ci(c, reps, alpha=alpha, method="clopper-pearson")
+    assert lo_alias == lo_full and hi_alias == hi_full
+
+
 # ================================================================== #
 # 5. Type and range sanity
 # ================================================================== #
 
 
-@pytest.mark.parametrize("method", ["cp", "normal"])
+@pytest.mark.parametrize("method", ["clopper-pearson", "normal"])
 def test_types_and_range(method: str):
     print("\n[5] Type/range sanity")
     lo, hi = pvalue_ci(7, 20, alpha=0.05, method=method)
@@ -252,7 +262,7 @@ def test_simulated_large_case():
 
     # CP method
     t0 = time.perf_counter()
-    lo_cp, hi_cp = pvalue_ci(c, reps, alpha=alpha, method="cp")
+    lo_cp, hi_cp = pvalue_ci(c, reps, alpha=alpha, method="clopper-pearson")
     t1 = time.perf_counter()
     lo_sm, hi_sm = proportion_confint(c, reps, alpha=alpha, method="beta")
     t2 = time.perf_counter()
@@ -302,7 +312,7 @@ def test_random_parameter_sweep():
         alpha = float(
             rng.uniform(1e-6, 0.5)
         )  # avoid extreme tails for stability checks
-        for method in ("cp", "normal"):
+        for method in ("clopper-pearson", "normal"):
             lo, hi = pvalue_ci(c, reps, alpha=alpha, method=method)
             assert isinstance(lo, float) and isinstance(hi, float)
             assert 0.0 <= lo <= hi <= 1.0

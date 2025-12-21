@@ -27,7 +27,7 @@ from .ci.coef_ci import (
     coef_ci_bounds_fast,
 )
 from .ci.pvalue_ci import _PValCIMethod, pvalue_ci
-from .config import DEFAULTS
+from .config import DEFAULTS, _canonical_ci_method
 
 # FastOLS is the linear-path engine; NUMBA_OK tells us if its kernels are JITed.
 try:
@@ -61,15 +61,13 @@ def _coerce_n_jobs(val: int | None) -> int:
 def _coerce_ci_method(
     x: str | _PValCIMethod | None, fallback: _PValCIMethod
 ) -> _PValCIMethod:
-    """Normalise user input to core labels `'cp'` or `'normal'`."""
+    """Normalise user input to canonical labels."""
     if x is None:
         return fallback
-    s = str(x).strip().lower()
-    if s in {"cp", "clopper-pearson", "clopperpearson", "clopper", "exact"}:
-        return "cp"  # type: ignore[return-value]
-    if s in {"normal", "wald"}:
-        return "normal"  # type: ignore[return-value]
-    return fallback
+    try:
+        return _canonical_ci_method(x)  # type: ignore[return-value]
+    except ValueError:
+        return fallback
 
 
 def _bytes_per_row(n_obs: int, label_itemsize: int) -> int:
@@ -131,7 +129,8 @@ def ritest(  # noqa: C901
     reps = int(cfg["reps"]) if reps is None else int(reps)
     seed = int(cfg["seed"]) if seed is None else int(seed)
     alpha = float(cfg["alpha"]) if alpha is None else float(alpha)
-    ci_method = _coerce_ci_method(ci_method, fallback=cfg["ci_method"])
+    cfg_ci_method = _canonical_ci_method(cfg["ci_method"])
+    ci_method = _coerce_ci_method(ci_method, fallback=cfg_ci_method)
     ci_mode = str(cfg["ci_mode"]) if ci_mode is None else str(ci_mode)
     ci_range = float(cfg["ci_range"]) if ci_range is None else float(ci_range)
     ci_step = float(cfg["ci_step"]) if ci_step is None else float(ci_step)

@@ -8,9 +8,9 @@ draw, where ``p_true`` is the underlying randomisation p-value. This module
 computes a (1 - alpha) confidence interval for ``p_true`` using one of two
 methods:
 
-- "cp":     Clopper–Pearson exact equal-tailed binomial CI.
+- "clopper-pearson": exact equal-tailed binomial CI (alias: "cp").
 - "normal": Wald normal approximation with a simple continuity correction
-            of ± 0.5 / reps.
+            of ± 0.5 / reps (alias: "wald").
 
 Boundary behaviour (Clopper–Pearson)
 ------------------------------------
@@ -26,9 +26,30 @@ from typing import Literal, Tuple
 
 from scipy.stats import beta, norm
 
-_PValCIMethod = Literal["cp", "normal"]
+_PValCIMethod = Literal["clopper-pearson", "normal"]
 
 __all__ = ["pvalue_ci"]
+
+
+def _canonical_method(method: str | _PValCIMethod) -> _PValCIMethod:
+    """
+    Normalize ci_method inputs to canonical labels.
+
+    Accepts legacy aliases like "cp" but always returns long-form names.
+    """
+    s = str(method).strip().lower().replace("_", "-")
+    if s in {
+        "cp",
+        "clopper-pearson",
+        "clopper pearson",
+        "clopperpearson",
+        "clopper",
+        "exact",
+    }:
+        return "clopper-pearson"
+    if s in {"normal", "wald"}:
+        return "normal"
+    raise ValueError(f"Unknown ci method: {method!r}")
 
 
 def _clamp01(x: float) -> float:
@@ -44,7 +65,7 @@ def pvalue_ci(
     c: int,
     reps: int,
     alpha: float = 0.05,
-    method: _PValCIMethod = "cp",
+    method: str | _PValCIMethod = "clopper-pearson",
 ) -> Tuple[float, float]:
     """
     Compute a (1 - alpha) confidence interval for the true randomisation p-value.
@@ -58,9 +79,9 @@ def pvalue_ci(
         Total number of permutation draws; must be a positive integer.
     alpha : float, default 0.05
         Significance level for the equal-tailed interval.
-    method : {"cp", "normal"}, default "cp"
-        - "cp": Clopper–Pearson exact interval.
-        - "normal": Wald interval with a continuity correction.
+    method : {"clopper-pearson", "normal"}, default "clopper-pearson"
+        - "clopper-pearson": exact Clopper–Pearson interval (alias: "cp").
+        - "normal": Wald interval with a continuity correction (alias: "wald").
 
     Returns
     -------
@@ -82,7 +103,9 @@ def pvalue_ci(
     if not (0.0 < float(alpha) < 1.0):
         raise ValueError(f"`alpha` must be in (0, 1) (got {alpha!r})")
 
-    if method == "cp":
+    method_norm = _canonical_method(method)
+
+    if method_norm == "clopper-pearson":
         # Clopper–Pearson equal-tailed binomial CI
         lo_raw = float(beta.ppf(alpha / 2.0, c, reps - c + 1))
         hi_raw = float(beta.ppf(1.0 - alpha / 2.0, c + 1, reps - c))
@@ -92,7 +115,7 @@ def pvalue_ci(
         hi = 1.0 if math.isnan(hi_raw) else _clamp01(hi_raw)
         return (lo, hi)
 
-    if method == "normal":
+    if method_norm == "normal":
         # Wald CI with continuity correction
         p_hat = c / reps
         z = float(norm.ppf(1.0 - alpha / 2.0))

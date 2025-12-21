@@ -179,7 +179,7 @@ def test_alpha_out_of_bounds_raises(alpha):
         validate_inputs(df, permute_var="T", formula="y ~ T", stat="T", alpha=alpha)
 
 
-@pytest.mark.parametrize("ci_method", ["cp", "normal"])
+@pytest.mark.parametrize("ci_method", ["clopper-pearson", "normal", "cp"])
 def test_ci_method_valid_values_ok(ci_method):
     df = make_base_df()
     validate_inputs(df, permute_var="T", formula="y ~ T", stat="T", ci_method=ci_method)
@@ -189,7 +189,7 @@ def test_ci_method_invalid_raises():
     df = make_base_df()
     with pytest.raises(
         ValueError,
-        match=r"ci_method must be 'cp' \(Clopper–Pearson\) or 'normal' \(Wald with continuity correction\)",
+        match=r"Validation error: ci_method must be one of \{clopper-pearson, normal\}",
     ):
         validate_inputs(
             df, permute_var="T", formula="y ~ T", stat="T", ci_method="beta"
