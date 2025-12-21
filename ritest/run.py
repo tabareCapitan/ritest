@@ -468,6 +468,15 @@ def ritest(  # noqa: C901
         raise ValueError(f"Unknown ci_mode: {ci_mode!r}")
 
     # 8) Package results
+    strata_count = (
+        int(np.unique(v.strata).size) if v.has_strata and v.strata is not None else None
+    )
+    cluster_count = (
+        int(np.unique(v.cluster).size)
+        if v.has_cluster and v.cluster is not None
+        else None
+    )
+
     settings: Dict[str, object] = {
         "alpha": alpha,
         "seed": seed,
@@ -478,6 +487,8 @@ def ritest(  # noqa: C901
         "ci_step": ci_step,
         "alternative": alternative,
         "n_jobs": n_jobs,
+        "strata": strata_count,
+        "clusters": cluster_count,
     }
 
     res = RitestResult(

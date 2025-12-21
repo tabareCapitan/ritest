@@ -1,0 +1,34 @@
+Randomization Inference Result
+===============================
+
+Coefficient
+-----------
+Observed effect (β̂):   -0.1807
+Coefficient CI bounds: [-0.4024, 0.0378]
+Coefficient CI band:   not computed
+
+Permutation test
+----------------
+Tail (alternative):     two-sided
+p-value:                0.1034 (10.3%)
+P-value CI @ α=0.050: [0.0951, 0.1122]
+As-or-more extreme:     517 / 5000
+
+Test configuration
+------------------
+Strata:                 31
+Clusters:               63
+Weights:                no
+
+Settings
+--------
+alpha:                  0.050
+seed:                   546
+ci_method:              clopper-pearson
+ci_mode:                bounds
+n_jobs:                 4
+
+Interpretation
+--------------
+Under the sharp null of no effect for any unit, 10.3% of randomized assignments produced a statistic as or more extreme in either direction than observed.
+Runtime (seconds): 200.055

@@ -31,6 +31,8 @@ def make_res(
         "ci_method": "clopper-pearson",
         "ci_mode": "band" if with_band else "none",
         "n_jobs": 1,
+        "strata": 2,
+        "clusters": 10,
     }
     if with_band and band_valid_linear:
         grid = np.linspace(-0.5, 0.5, 11)
@@ -70,6 +72,8 @@ def test_summary_includes_sections_and_values():
     assert "Observed effect (β̂):" in s
     assert "Tail (alternative):     two-sided" in s
     assert "As-or-more extreme:     160 / 5000" in s
+    assert "Strata:                 2" in s
+    assert "Clusters:               10" in s
     assert "Coefficient CI bounds: [" in s
     assert "Coefficient CI band:   available (fast-linear)" in s
 

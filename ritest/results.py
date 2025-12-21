@@ -66,6 +66,17 @@ def _yn(flag: bool) -> str:
     return "yes" if bool(flag) else "no"
 
 
+def _fmt_count(val: object | None) -> str:
+    """Format an integer-like count or return '—' if missing."""
+    if val is None:
+        return "—"
+    try:
+        iv = int(val)  # type: ignore[arg-type]
+    except Exception:
+        return "—"
+    return str(iv)
+
+
 def _get_alpha(settings: Dict[str, object], fallback: float = 0.05) -> float:
     """
     Extract `alpha` from a settings dict, with a numeric fallback.
@@ -223,8 +234,10 @@ class RitestResult:
         lines.append("")
         lines.append("Test configuration")
         lines.append("------------------")
-        lines.append(f"Stratified:             {_yn(self.stratified)}")
-        lines.append(f"Clustered:              {_yn(self.clustered)}")
+        strata_count = self.settings.get("strata")
+        cluster_count = self.settings.get("clusters")
+        lines.append(f"Strata:                 {_fmt_count(strata_count)}")
+        lines.append(f"Clusters:               {_fmt_count(cluster_count)}")
         lines.append(f"Weights:                {_yn(self.weights)}")
 
         # Settings
@@ -272,11 +285,11 @@ class RitestResult:
         Raises
         ------
         ValueError
-        If `coef_ci_band` is not available (e.g. ci_mode != "band").
+        If `coef_ci_band` is not available (e.g. ci_mode != "bands").
         """
         if self.coef_ci_band is None:
             raise ValueError(
-                "coef_ci_band is not available (likely ci_mode != 'band')."
+                "coef_ci_band is not available (likely ci_mode != 'bands')."
             )
 
         # Lazy import to avoid unnecessary dependency cost on summary-only use
