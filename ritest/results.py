@@ -140,22 +140,16 @@ class RitestResult:
         )
 
     # --------------- user-facing helpers --------------- #
-    def explain(self, alpha: Optional[float] = None) -> str:
+    def explain(self) -> str:
         """
         Return a brief, plain-language interpretation of the result.
 
-        Parameters
-        ----------
-        alpha : float, optional
-            Significance threshold to reference. If None, uses
-            `settings['alpha']` or 0.05.
 
         Returns
         -------
         str
-            A 2–3 sentence summary in plain language.
+            A short summary in plain language.
         """
-        a = _get_alpha(self.settings, 0.05) if alpha is None else float(alpha)
         tail = self.alternative
         p = float(self.pval)
 
@@ -169,17 +163,6 @@ class RitestResult:
         lines.append(
             f"Under the sharp null of no effect for any unit, "
             f"{_fmt_pct(p)} of randomized assignments produced a statistic as or more extreme {dir_phrase} than observed."
-        )
-        if p <= a:
-            lines.append(
-                f"At α = {_fmt_float(a, 3)}, the result is **statistically significant** for a {tail} test."
-            )
-        else:
-            lines.append(
-                f"At α = {_fmt_float(a, 3)}, the result is **not statistically significant** for a {tail} test."
-            )
-        lines.append(
-            "This p-value is finite-sample and design-based from permutation/randomization inference."
         )
         return " ".join(lines)
 
@@ -258,7 +241,7 @@ class RitestResult:
         lines.append("")
         lines.append("Interpretation")
         lines.append("--------------")
-        expl = self.explain(alpha=a)
+        expl = self.explain()
         lines.append(indent(expl, ""))
 
         out = "\n".join(lines)

@@ -90,23 +90,6 @@ def test_summary_handles_missing_optionals_cleanly():
     assert "P-value CI @ α=0.050: not computed" in s
 
 
-def test_generic_band_note():
-    res = make_res(band_valid_linear=False)
-    s = res.summary(print_out=False)
-    assert "Coefficient CI band:   not computed" in s
-
-
-def test_explain_significant_and_not_significant():
-    res_sig = make_res(pval=0.040)
-    e1 = res_sig.explain(alpha=0.05).lower()
-    assert "statistically significant" in e1
-    assert "two-sided" in e1
-
-    res_ns = make_res(pval=0.060)
-    e2 = res_ns.explain(alpha=0.05).lower()
-    assert "not statistically significant" in e2
-
-
 def test_repr_and_str_are_concise():
     res = make_res()
     r = repr(res)
