@@ -30,7 +30,7 @@ def main() -> None:
         formula="y ~ treatment",
         stat="treatment",
         reps=500,
-        ci_mode="grid",
+        ci_mode="band",
         seed=123,
     )
 

@@ -135,6 +135,7 @@ def run_linear(df: pd.DataFrame, reps: int, seed: int, outdir: Path) -> None:
         stat=STAT,
         reps=reps,
         seed=seed,
+        ci_mode="none",
     )
     dt = time.perf_counter() - t0
 
@@ -194,6 +195,7 @@ def run_generic_statsmodels(
         stat_fn=stat_fn,
         reps=reps,
         seed=seed,
+        ci_mode="none",
     )
     dt = time.perf_counter() - t0
 

@@ -1,26 +1,27 @@
-----------------------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------
       name:  <unnamed>
-       log:  /home/tc/projects/ritest/documentation/benchmarks/ci-bands/output/stata.txt
+       log:  /home/tc/projects/ritest/documentation/benchmarks/ci-bands/output/stata.t
+> xt
   log type:  text
- opened on:  15 Dec 2025, 15:03:22
+ opened on:  22 Dec 2025, 14:54:41
 
-.
+. 
 . display "=== ritest ci-bands benchmark (Stata) ==="
 === ritest ci-bands benchmark (Stata) ===
 
 . display "Timestamp: " c(current_date) " " c(current_time)
-Timestamp: 15 Dec 2025 15:03:22
+Timestamp: 22 Dec 2025 14:54:41
 
 . display ""
 
 
-.
+. 
 . import delimited "data/ci_bands.csv", clear
 (encoding automatically selected: ISO-8859-1)
 (2 vars, 100 obs)
 
-.
-.
+. 
+. 
 . // run regular ritest
 . ritest treatment (_b[treatment]), nodots reps(500) seed(123): ///
 >         reg y treatment
@@ -56,33 +57,35 @@ T            |     T(obs)       c       n   p=c/n   SE(p) [95% Conf. Interval]
 Note: Confidence interval is with respect to p=c/n.
 Note: c = #{|T| >= |T(obs)|}
 
-.
-.
+. 
+. 
 . timer clear 1
 
 . timer on 1
 
-.
-. //run ritest to find which hypotheses for the treatment effect in [-1,1] can[not] be rejected
+. 
+. //run ritest to find which hypotheses for the treatment effect in [-1,1] can[not] be
+>  rejected
 . tempfile gridsearch
 
 . postfile pf TE pval using `gridsearch'
 
 . forval i=-1(0.05)1 {
-  2. //      qui ritest treatment (_b[treatment]/_se[treatment]), reps(500) null(y `i') seed(123): reg y treatment //run ritest for the
-> ols reg with the studentized treatment effect
-.         qui ritest treatment (_b[treatment]), reps(500) null(y `i') seed(123): reg y treatment // tc: run with _b[treatment] only to c
-> ompare
-  3.
-.
+  2. //      qui ritest treatment (_b[treatment]/_se[treatment]), reps(500) null(y `i'
+> ) seed(123): reg y treatment //run ritest for the ols reg with the studentized treat
+> ment effect
+.         qui ritest treatment (_b[treatment]), reps(500) null(y `i') seed(123): reg y
+>  treatment // tc: run with _b[treatment] only to compare
+  3. 
+. 
 .         mat pval = r(p)
   4.         post pf (`i') (pval[1,1])
   5. }
 
 . postclose pf
 
-.
-.
+. 
+. 
 . timer off 1
 
 . display ""
@@ -92,19 +95,19 @@ Note: c = #{|T| >= |T(obs)|}
 RI runtime (seconds):
 
 . timer list 1
-   1:    276.60 /        1 =     276.6020
+   1:    138.60 /        1 =     138.5990
 
-.
-.
+. 
+. 
 . //show results to illustrate confidence intervals
 . use `gridsearch', clear
 
 . tw line pval TE , yline(0.05) xline(-0.2 0.2 0.6)
 
 . graph export "output/stata_ci_bands.png", replace
-file output/stata_ci_bands.png saved as PNG format
+file output/stata_ci_bands.png written in PNG format
 
-.
+. 
 . display ""
 
 
@@ -113,7 +116,8 @@ file output/stata_ci_bands.png saved as PNG format
 
 . log close
       name:  <unnamed>
-       log:  /home/tc/projects/ritest/documentation/benchmarks/ci-bands/output/stata.txt
+       log:  /home/tc/projects/ritest/documentation/benchmarks/ci-bands/output/stata.t
+> xt
   log type:  text
- closed on:  15 Dec 2025, 15:08:06
-----------------------------------------------------------------------------------------------------------------------------------------
+ closed on:  22 Dec 2025, 14:57:05
+--------------------------------------------------------------------------------------

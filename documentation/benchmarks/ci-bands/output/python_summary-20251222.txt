@@ -4,7 +4,7 @@ Randomization Inference Result
 Coefficient
 -----------
 Observed effect (β̂):   0.2019
-Coefficient CI bounds: not computed
+Coefficient CI bounds: [-0.1886, 0.5873]
 Coefficient CI band:   available (fast-linear)
 
 Permutation test
@@ -16,19 +16,19 @@ As-or-more extreme:     155 / 500
 
 Test configuration
 ------------------
-Stratified:             no
-Clustered:              no
+Strata:                 —
+Clusters:               —
 Weights:                no
 
 Settings
 --------
 alpha:                  0.050
 seed:                   123
-ci_method:              cp
-ci_mode:                grid
+ci_method:              clopper-pearson
+ci_mode:                band
 n_jobs:                 4
 
 Interpretation
 --------------
-Under the sharp null of no effect for any unit, 31.0% of randomized assignments produced a statistic as or more extreme in either direction than observed. At α = 0.050, the result is **not statistically significant** for a two-sided test. This p-value is finite-sample and design-based from permutation/randomization inference.
-Runtime (seconds): 0.061
+Under the sharp null of no effect for any unit, 31.0% of randomized assignments produced a statistic as or more extreme in either direction than observed.
+Runtime (seconds): 0.060

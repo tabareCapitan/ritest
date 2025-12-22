@@ -148,6 +148,7 @@ def run_linear(df: pd.DataFrame) -> None:
         strata=STRATA,
         reps=REPS,
         seed=SEED,
+        ci_mode="none",
     )
     dt = time.perf_counter() - t0
 
@@ -180,6 +181,7 @@ def run_generic_pyfixest(df: pd.DataFrame) -> None:
         strata=STRATA,
         reps=REPS,
         seed=SEED,
+        ci_mode="none",
     )
     dt = time.perf_counter() - t0
 

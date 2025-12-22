@@ -1,0 +1,4 @@
+script,python,platform,cpu_affinity,repeats,drop_first,kept_n,failed_n,kept_min_s,kept_median_s,kept_max_s,all_times_s,all_rcs
+benchmarks/ci-bands/scripts/02_run_python.py,/home/tc/projects/ritest/documentation/.venv-docs/bin/python,linux,"default",6,1,5,0,1.913,1.921,1.941,"1.971;1.941;1.932;1.921;1.913;1.920","0;0;0;0;0;0"
+benchmarks/colombia/scripts/colombia.py,/home/tc/projects/ritest/documentation/.venv-docs/bin/python,linux,"default",6,1,5,0,8.058,8.087,8.123,"8.279;8.101;8.123;8.087;8.084;8.058","0;0;0;0;0;0"
+benchmarks/linear-vs-generic/scripts/02_run_python.py,/home/tc/projects/ritest/documentation/.venv-docs/bin/python,linux,"default",6,1,5,0,16.480,16.691,16.811,"16.532;16.691;16.480;16.742;16.811;16.507","0;0;0;0;0;0"
