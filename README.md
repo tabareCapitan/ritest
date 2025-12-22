@@ -8,18 +8,19 @@
 
 ## Overview
 
-`ritest` provides fast randomization inference (RI) tools for linear models and arbitrary statistics. It supports weights (WLS) as well as stratified and clustered designs.
+`ritest` provides fast randomization inference (RI) tools for linear models and arbitrary statistics. It supports weights as well as stratified and clustered designs. Reports coefficient confidence interval by default.
 
 📑 Documentation: [https://tabarecapitan.com/projects/ritest](https://tabarecapitan.com/projects/ritest).
+
 
 ## Features
 
 * Linear-model RI with efficient computation.
 * Generic RI for arbitrary scalar statistics via `stat_fn`.
+* Ultra-fast coefficient bounds and bands.
 * Stratified, clustered, and stratified-clustered designs.
 * Weighted least squares (WLS) support.
 * Deterministic seeding, reproducible permutations.
-* Configurable p-value and ultra-fast coefficient bounds and bands.
 
 ## Installation
 
