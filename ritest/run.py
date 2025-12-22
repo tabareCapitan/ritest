@@ -125,7 +125,9 @@ def ritest(  # noqa: C901
     reps = int(cfg["reps"]) if reps is None else int(reps)
     seed = int(cfg["seed"]) if seed is None else int(seed)
     alpha = float(cfg["alpha"]) if alpha is None else float(alpha)
-    cfg_ci_method = _canonical_ci_method(cfg["ci_method"])
+    cfg_ci_method: _PValCIMethod = cast(
+        _PValCIMethod, _canonical_ci_method(cast(str, cfg["ci_method"]))
+    )
     ci_method = _coerce_ci_method(ci_method, fallback=cfg_ci_method)
     ci_mode = str(cfg["ci_mode"]) if ci_mode is None else str(ci_mode)
     ci_range = float(cfg["ci_range"]) if ci_range is None else float(ci_range)
@@ -162,6 +164,9 @@ def ritest(  # noqa: C901
     # 2) Observed statistic
     linear_model = v.stat_fn is None
     need_coef_ci = linear_model and ci_mode != "none"
+    stat_fn_local: Callable[[pd.DataFrame], float] | None = None
+    t_metric_lin: Optional[np.ndarray] = None
+
     if linear_model:
         ols = FastOLS(
             v.y,
@@ -174,13 +179,13 @@ def ritest(  # noqa: C901
         obs_stat = float(ols.beta_hat)
         se_obs = float(ols.se)
         K_obs = float(ols.K)
-        t_metric_lin = ols.t_metric  # branch-local, aligns with c_vector metric
+        t_metric_lin = ols.t_metric  # aligns with c_vector metric
     else:
         stat_fn_local = cast(Callable[[pd.DataFrame], float], v.stat_fn)
         obs_stat = float(stat_fn_local(df))
         se_obs = float("nan")
         K_obs = float("nan")
-        t_metric_lin = None  # type: ignore[assignment]
+        t_metric_lin = None
 
     # 3) Allocate outputs (small, O(reps))
     perm_stats = np.empty(reps, dtype=np.float64)
@@ -221,7 +226,8 @@ def ritest(  # noqa: C901
         r_abs, T_perm = args
         ols_r = _solve_linear_perm(T_perm)
         beta_r = float(ols_r.beta_hat)
-        Kr = float(ols_r.c_vector @ t_metric_lin)  # type: ignore[arg-type]
+        assert t_metric_lin is not None
+        Kr = float(ols_r.c_vector @ cast(np.ndarray, t_metric_lin))
         return r_abs, beta_r, Kr
 
     def _eval_one(args: Tuple[int, np.ndarray]) -> Tuple[int, float]:
@@ -229,7 +235,8 @@ def ritest(  # noqa: C901
         r_abs, T_perm = args
         dfp = df.copy(deep=False)
         dfp[permute_var] = T_perm  # pandas will upcast to float when needed
-        return r_abs, float(stat_fn_local(dfp))  # type: ignore[arg-type]
+        assert stat_fn_local is not None
+        return r_abs, float(stat_fn_local(dfp))
 
     # 4) Permutations: prebuilt, eager, or chunked (deterministic in all cases)
     if permutations is not None:
@@ -245,41 +252,52 @@ def ritest(  # noqa: C901
             perm_stats = np.empty(reps, dtype=np.float64)
             if need_coef_ci:
                 K_perm_local = np.empty(reps, dtype=np.float64)
+
         # Process rows directly (no chunking for user-supplied matrix)
         if linear_model:
             if n_jobs == 1:
                 X_work = v.X.copy()
-                for r in range(reps):
-                    ols_r = _solve_linear_perm(
-                        perms[r], X_template=X_work, reuse_template=True
-                    )
-                    perm_stats[r] = float(ols_r.beta_hat)
-                    if need_coef_ci:
-                        K_perm_local[r] = float(ols_r.c_vector @ t_metric_lin)  # type: ignore[index]
+                if need_coef_ci:
+                    assert t_metric_lin is not None
+                    t_metric = cast(np.ndarray, t_metric_lin)
+                    K_perm_arr = cast(np.ndarray, K_perm_local)
+                    for r in range(reps):
+                        ols_r = _solve_linear_perm(
+                            perms[r], X_template=X_work, reuse_template=True
+                        )
+                        perm_stats[r] = float(ols_r.beta_hat)
+                        K_perm_arr[r] = float(ols_r.c_vector @ t_metric)
+                else:
+                    for r in range(reps):
+                        ols_r = _solve_linear_perm(
+                            perms[r], X_template=X_work, reuse_template=True
+                        )
+                        perm_stats[r] = float(ols_r.beta_hat)
             else:
-                worker = _fit_one_beta_K if need_coef_ci else _fit_one_beta
                 with ThreadPoolExecutor(max_workers=n_jobs) as ex:
                     if need_coef_ci:
+                        K_perm_arr = cast(np.ndarray, K_perm_local)
                         for r_abs, beta_r, Kr in ex.map(
-                            worker, ((r, perms[r]) for r in range(reps))
+                            _fit_one_beta_K, ((r, perms[r]) for r in range(reps))
                         ):
                             perm_stats[r_abs] = beta_r
-                            K_perm_local[r_abs] = Kr  # type: ignore[index]
+                            K_perm_arr[r_abs] = Kr
                     else:
                         for r_abs, beta_r in ex.map(
-                            worker, ((r, perms[r]) for r in range(reps))
+                            _fit_one_beta, ((r, perms[r]) for r in range(reps))
                         ):
                             perm_stats[r_abs] = beta_r
         else:
             if n_jobs == 1:
+                stat_fn = cast(Callable[[pd.DataFrame], float], stat_fn_local)
                 for r in range(reps):
                     dfp = df.copy(deep=False)
                     dfp[permute_var] = perms[r]
-                    perm_stats[r] = float(stat_fn_local(dfp))  # type: ignore[arg-type]
+                    perm_stats[r] = float(stat_fn(dfp))
             else:
                 with ThreadPoolExecutor(max_workers=n_jobs) as ex:
                     for r_abs, z in ex.map(
-                        lambda a: _eval_one(a), ((r, perms[r]) for r in range(reps))
+                        _eval_one, ((r, perms[r]) for r in range(reps))
                     ):
                         perm_stats[r_abs] = z
     else:
@@ -297,33 +315,43 @@ def ritest(  # noqa: C901
             if linear_model:
                 if n_jobs == 1:
                     X_work = v.X.copy()
-                    for r in range(reps):
-                        ols_r = _solve_linear_perm(
-                            T_perms[r], X_template=X_work, reuse_template=True
-                        )
-                        perm_stats[r] = float(ols_r.beta_hat)
-                        if need_coef_ci:
-                            K_perm_local[r] = float(ols_r.c_vector @ t_metric_lin)  # type: ignore[index]
+                    if need_coef_ci:
+                        assert t_metric_lin is not None
+                        t_metric = cast(np.ndarray, t_metric_lin)
+                        K_perm_arr = cast(np.ndarray, K_perm_local)
+                        for r in range(reps):
+                            ols_r = _solve_linear_perm(
+                                T_perms[r], X_template=X_work, reuse_template=True
+                            )
+                            perm_stats[r] = float(ols_r.beta_hat)
+                            K_perm_arr[r] = float(ols_r.c_vector @ t_metric)
+                    else:
+                        for r in range(reps):
+                            ols_r = _solve_linear_perm(
+                                T_perms[r], X_template=X_work, reuse_template=True
+                            )
+                            perm_stats[r] = float(ols_r.beta_hat)
                 else:
-                    worker = _fit_one_beta_K if need_coef_ci else _fit_one_beta
                     with ThreadPoolExecutor(max_workers=n_jobs) as ex:
                         if need_coef_ci:
+                            K_perm_arr = cast(np.ndarray, K_perm_local)
                             for r, beta_r, Kr in ex.map(
-                                worker, ((r, T_perms[r]) for r in range(reps))
+                                _fit_one_beta_K, ((r, T_perms[r]) for r in range(reps))
                             ):
                                 perm_stats[r] = beta_r
-                                K_perm_local[r] = Kr  # type: ignore[index]
+                                K_perm_arr[r] = Kr
                         else:
                             for r, beta_r in ex.map(
-                                worker, ((r, T_perms[r]) for r in range(reps))
+                                _fit_one_beta, ((r, T_perms[r]) for r in range(reps))
                             ):
                                 perm_stats[r] = beta_r
             else:
                 if n_jobs == 1:
+                    stat_fn = cast(Callable[[pd.DataFrame], float], stat_fn_local)
                     for r in range(reps):
                         dfp = df.copy(deep=False)
                         dfp[permute_var] = T_perms[r]
-                        perm_stats[r] = float(stat_fn_local(dfp))  # type: ignore[arg-type]
+                        perm_stats[r] = float(stat_fn(dfp))
                 else:
                     with ThreadPoolExecutor(max_workers=n_jobs) as ex:
                         for r, z in ex.map(
@@ -355,20 +383,28 @@ def ritest(  # noqa: C901
                     m = block.shape[0]
                     if linear_model:
                         Xw = cast(np.ndarray, X_work)
-                        for i in range(m):
-                            ols_r = _solve_linear_perm(
-                                block[i], X_template=Xw, reuse_template=True
-                            )
-                            perm_stats[r0 + i] = float(ols_r.beta_hat)
-                            if need_coef_ci:
-                                K_perm_local[r0 + i] = float(
-                                    ols_r.c_vector @ t_metric_lin
-                                )  # type: ignore[index]
+                        if need_coef_ci:
+                            assert t_metric_lin is not None
+                            t_metric = cast(np.ndarray, t_metric_lin)
+                            K_perm_arr = cast(np.ndarray, K_perm_local)
+                            for i in range(m):
+                                ols_r = _solve_linear_perm(
+                                    block[i], X_template=Xw, reuse_template=True
+                                )
+                                perm_stats[r0 + i] = float(ols_r.beta_hat)
+                                K_perm_arr[r0 + i] = float(ols_r.c_vector @ t_metric)
+                        else:
+                            for i in range(m):
+                                ols_r = _solve_linear_perm(
+                                    block[i], X_template=Xw, reuse_template=True
+                                )
+                                perm_stats[r0 + i] = float(ols_r.beta_hat)
                     else:
+                        stat_fn = cast(Callable[[pd.DataFrame], float], stat_fn_local)
                         for i in range(m):
                             dfp = df.copy(deep=False)
                             dfp[permute_var] = block[i]
-                            perm_stats[r0 + i] = float(stat_fn_local(dfp))  # type: ignore[arg-type]
+                            perm_stats[r0 + i] = float(stat_fn(dfp))
                     r0 += m
             else:
                 # Parallel evaluation per block; keep one pool for the entire run.
@@ -384,16 +420,18 @@ def ritest(  # noqa: C901
                         m = block.shape[0]
                         if linear_model:
                             # Map absolute indices to rows in the current block
-                            worker = _fit_one_beta_K if need_coef_ci else _fit_one_beta
                             if need_coef_ci:
+                                K_perm_arr = cast(np.ndarray, K_perm_local)
                                 for r_abs, beta_r, Kr in ex.map(
-                                    worker, ((r0 + i, block[i]) for i in range(m))
+                                    _fit_one_beta_K,
+                                    ((r0 + i, block[i]) for i in range(m)),
                                 ):
                                     perm_stats[r_abs] = beta_r
-                                    K_perm_local[r_abs] = Kr  # type: ignore[index]
+                                    K_perm_arr[r_abs] = Kr
                             else:
                                 for r_abs, beta_r in ex.map(
-                                    worker, ((r0 + i, block[i]) for i in range(m))
+                                    _fit_one_beta,
+                                    ((r0 + i, block[i]) for i in range(m)),
                                 ):
                                     perm_stats[r_abs] = beta_r
                         else:
@@ -412,7 +450,7 @@ def ritest(  # noqa: C901
         extreme = perm_stats <= obs_stat
 
     c = int(extreme.sum())
-    p_val = (c + 1) / (reps + 1)
+    p_val = c / reps
     p_ci = pvalue_ci(c, reps, alpha=alpha, method=ci_method)
 
     # 6) (Optionally) compute coefficient CI artifacts
