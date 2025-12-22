@@ -21,11 +21,7 @@ from typing import Callable, Dict, Optional, Tuple, cast
 import numpy as np
 import pandas as pd
 
-from .ci.coef_ci import (
-    Alt,
-    coef_ci_band_fast,
-    coef_ci_bounds_fast,
-)
+from .ci.coef_ci import Alt, coef_ci_band_fast, coef_ci_bounds_fast
 from .ci.pvalue_ci import _PValCIMethod, pvalue_ci
 from .config import DEFAULTS, _canonical_ci_method
 
@@ -416,7 +412,7 @@ def ritest(  # noqa: C901
         extreme = perm_stats <= obs_stat
 
     c = int(extreme.sum())
-    p_val = c / reps
+    p_val = (c + 1) / (reps + 1)
     p_ci = pvalue_ci(c, reps, alpha=alpha, method=ci_method)
 
     # 6) (Optionally) compute coefficient CI artifacts
