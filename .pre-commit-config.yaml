@@ -10,13 +10,6 @@ repos:
         files: \.pyi?$
         exclude: ^documentation/benchmarks/.*/output/|\.do$
 
-  - repo: https://github.com/psf/black
-    rev: 24.8.0
-    hooks:
-      - id: black
-        files: \.pyi?$
-        exclude: ^documentation/benchmarks/.*/output/|\.do$
-
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
