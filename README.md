@@ -4,6 +4,7 @@
 [![Python versions](https://img.shields.io/pypi/pyversions/ritest-python.svg)](https://pypi.org/project/ritest-python/)
 [![CI](https://github.com/tabareCapitan/ritest/actions/workflows/ci.yml/badge.svg)](https://github.com/tabareCapitan/ritest/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![status](https://joss.theoj.org/papers/8a9c5ad901eaeb93462ff9179a8e9d03/status.svg)](https://joss.theoj.org/papers/8a9c5ad901eaeb93462ff9179a8e9d03)
 
 
 ## Overview
