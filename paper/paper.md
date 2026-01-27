@@ -22,7 +22,7 @@ bibliography: paper.bib
 
 Randomization inference (RI) provides design-based inference for experiments by comparing an observed test statistic to its distribution over re-randomizations of the treatment assignment. Because the reference distribution is defined by the assignment mechanism, RI can be especially attractive when sample sizes are modest or when researchers want inference that depends primarily on the randomization protocol rather than large-sample approximations [@fisher1935; @imbensrubin2015].
 
-`ritest` is a Python package implementing RI in a workflow similar to Stata’s `ritest` command [@hess2017]. It supports (i) a fast linear-model path for regression coefficients, and (ii) a generic path that accepts arbitrary user-defined statistics. For linear models, `ritest` additionally implements test inversion to obtain coefficient confidence interval (CI) bounds and a full $p(\beta_0)$ profile (“CI band”) over candidate null values, designed to be practical even with large permutation counts.
+`ritest` is a Python package implementing RI in a workflow similar to Stata’s `ritest` command [@hess2017], but designed around Python’s numerical stack and extended to support computationally feasible test inversion. It supports (i) a fast linear-model path for regression coefficients, and (ii) a generic path that accepts arbitrary user-defined statistics. For linear models, `ritest` additionally implements test inversion to obtain coefficient confidence interval (CI) bounds and a full $p(\beta_0)$ profile (“CI band”) over candidate null values, designed to be practical even with large permutation counts.
 
 # Statement of need
 
@@ -34,7 +34,7 @@ RI is used across fields with randomized or quasi-randomized designs, including 
 
 Python has a strong ecosystem for estimation and model-based inference (e.g., linear models and generalized linear models in `statsmodels` [@seabold2010statsmodels] and numerical foundations in `NumPy` and `SciPy` [@harris2020numpy; @virtanen2020scipy]). However, an RI workflow that mirrors common applied practice—especially in econometrics and related areas—requires additional components: constrained re-randomization that matches the study design, clear Monte Carlo precision reporting for the $p$-value, and (for regression coefficients) a way to obtain confidence intervals by inverting the RI test. `ritest` provides these pieces in a single, documented implementation intended for integration into Python analysis pipelines.
 
-# Design and implementation
+# Software design and implementation
 
 `ritest` exposes one user-facing function, `ritest()`, which takes a dataframe, a binary assignment variable, and either:
 
@@ -72,6 +72,19 @@ For candidate $\beta_0$, `ritest` evaluates $p(\beta_0)$ using shifted coefficie
 
 A naive implementation would refit the model for each permutation *and* for each candidate null value, which is often impractical. `ritest` implements a fast approach that reuses precomputed invariants from the observed fit and the permuted fits, making it feasible to report coefficient CIs as a default for linear models.
 
+## Key design choices
+
+Randomization inference is computationally dominated by repeated estimation under permuted treatment assignments. The main design problem in `ritest` is therefore how to make this estimation fast enough to be practical for applied work.
+
+`ritest` addresses this by deliberately specializing in linear models, which admit a common linear-algebraic solution. By restricting the optimized path to this class, the package can reuse design-matrix invariants and avoid general-purpose model-fitting overhead. This makes large permutation counts feasible and enables routine computation of coefficient confidence intervals and full $p(\beta_0)$ profiles by test inversion. The trade-off is that non-linear models are not supported on this fast path.
+
+This restriction reflects common applied practice. In randomized experiments, linear regressions are widely used to estimate average treatment effects and to report design-based inference for regression coefficients. Supporting non-linear models efficiently would require a different architecture and substantially greater complexity, with limited benefit for this core use case.
+
+To retain flexibility, `ritest` also provides a generic path that accepts any user-defined statistic, trading performance for generality. This two-tier design—a small optimized linear core alongside a flexible generic interface—keeps the implementation predictable and performant.
+
+While mature RI implementations exist in Stata and R, contributing this design upstream was not feasible. The optimized linear path relies on tight integration with Python’s numerical stack and architectural choices that differ from existing implementations. `ritest` therefore fills a gap in the Python ecosystem by providing a design-based inference tool that is computationally practical and aligned with established workflows.
+
+
 # Examples and typical applications
 
 `ritest` is designed to support common applications of RI:
@@ -83,9 +96,29 @@ A naive implementation would refit the model for each permutation *and* for each
 
 These patterns cover settings frequently encountered in applied economics and political science field experiments, psychology and education trials, and agricultural or ecological intervention studies.
 
+
+# Research impact statement
+
+`ritest` provides a design-based inference workflow for Python users working with randomized experiments, a capability that was previously missing from the Python ecosystem as an integrated and computationally practical tool. While the package was first released in December 2025 and has not yet accumulated citations, its near-term research significance is well defined.
+
+Randomization inference is widely used in applied economics and related fields. The Stata implementation of `ritest` [@hess2017] alone has over 400 citations, indicating sustained demand for this methodology in experimental research. At the same time, Python has become an increasingly common environment for data analysis and experimentation, particularly in interdisciplinary settings. `ritest` bridges this gap by making established RI workflows available within Python-based pipelines.
+
+Beyond basic permutation tests, ritest enables functionality that is often impractical in existing implementations, most notably coefficient confidence intervals and full $p(\beta_0)$ profiles obtained by test inversion. By making these procedures computationally feasible, the package lowers the cost of reporting richer design-based uncertainty measures in applied work.
+
+The software is released under an open-source license and is accompanied by extensive documentation, worked examples, benchmarks, and technical notes describing both the statistical and computational details. A stable public API, automated tests, and reproducible benchmarks are intended to support adoption, scrutiny, and extension by the research community.
+
+
 # Related software
 
 Stata’s `ritest` [@hess2017] and the R implementations (e.g., `ritest` [@ritestR]) provide established RI workflows. A package providing equivalent functionality in Python does not exist. The current package also provides a significant improvement in performance relative to the implementations in Stata and R, making computation of confidence bounds and bands feasible.
+
+
+# AI usage disclosure
+
+Generative AI tools were used during the development of this project. In particular, ChatGPT (OpenAI, GPT-4–class models available during 2025) was used to assist with software development tasks, including code drafting, refactoring, and test scaffolding. Limited AI assistance was also used to generate example code and benchmark scaffolding. The manuscript text and documentation were written by the author, with minor AI-assisted copy-editing.
+
+All architectural decisions, statistical methodology, and mathematical derivations were designed by the author. All AI-assisted outputs were reviewed, edited, and validated by the author, who takes full responsibility for the accuracy, originality, licensing, and ethical compliance of the software and the paper. No AI tools were used for interactions with editors or reviewers.
+
 
 # Availability
 
